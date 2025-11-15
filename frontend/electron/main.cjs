@@ -227,12 +227,6 @@ ipcMain.handle('save-config', (event, config) => {
   return { success: true };
 });
 
-ipcMain.handle('start-setup', async () => {
-  console.log('Start setup called from renderer');
-  // Perform any async setup tasks here if needed
-  return { success: true };
-});
-
 ipcMain.handle('get-user-data-path', () => {
   return userDataPath;
 });
