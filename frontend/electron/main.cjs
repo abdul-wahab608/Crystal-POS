@@ -153,11 +153,15 @@ async function startBackend() {
     djangoProcess.on('error', (error) => {
       console.error('Failed to start Django:', error);
       if (startupTimeout) clearTimeout(startupTimeout);
-      reject(error);
+      // Don't reject - just log and continue
+      resolve();
     });
 
     djangoProcess.on('close', (code) => {
       console.log(`Django process exited with code ${code}`);
+      if (code !== 0 && code !== null) {
+        console.error('Django exited with error code:', code);
+      }
       djangoProcess = null;
     });
 
@@ -259,20 +263,42 @@ ipcMain.handle('start-setup', async () => {
         console.log('Database copied to:', config.dbPath);
       } else {
         // Run migrations to create fresh database
-        console.log('Creating new database...');
+        console.log('Creating new database with migrations...');
         const { spawn } = require('child_process');
         const pythonCmd = 'python';
-        const migrateProcess = spawn(pythonCmd, ['manage.py', 'migrate'], {
+        const migrateProcess = spawn(pythonCmd, ['manage.py', 'migrate', '--noinput'], {
           cwd: backendPath,
           env: {
             ...process.env,
-            DJANGO_DB_PATH: config.dbPath
+            DJANGO_DB_PATH: config.dbPath,
+            DJANGO_SECRET_KEY: 'desktop-app-secret-key-' + Date.now()
           },
           shell: true
         });
         
-        await new Promise((resolve) => {
-          migrateProcess.on('close', () => resolve());
+        migrateProcess.stdout.on('data', (data) => {
+          console.log(`Migration: ${data}`);
+        });
+        
+        migrateProcess.stderr.on('data', (data) => {
+          console.error(`Migration error: ${data}`);
+        });
+        
+        await new Promise((resolve, reject) => {
+          migrateProcess.on('close', (code) => {
+            if (code === 0) {
+              console.log('Migrations completed successfully');
+              resolve();
+            } else {
+              console.error(`Migrations failed with code ${code}`);
+              reject(new Error(`Migration failed with code ${code}`));
+            }
+          });
+          
+          migrateProcess.on('error', (err) => {
+            console.error('Migration process error:', err);
+            reject(err);
+          });
         });
       }
     }
