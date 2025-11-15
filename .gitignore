@@ -1,0 +1,139 @@
+# Python / Django Backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+*.log
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+backend/venv/
+
+# Django
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+backend/db.sqlite3
+backend/db.sqlite3-journal
+media/
+static/
+staticfiles/
+*.pot
+
+# Node.js / Frontend
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build Output
+dist/
+dist-ssr/
+frontend/dist/
+*.local
+
+# Vite
+.vite/
+.vite-cache/
+frontend/.vite/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+backend/.env
+frontend/.env
+
+# Testing
+/coverage
+.nyc_output
+test_apis.py
+TEST_REPORT.md
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+backend/logs/
+frontend/logs/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Generated Reports / Excel Files
+*.xlsx
+*.xls
+*.csv
+!requiremnets sheet.xlsx
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.cache
+*.swp
+*~
+
+# Documentation (optional)
+# Uncomment to exclude from git:
+# API_ENDPOINTS_COMPARISON.md
+# Crystal_DjangoVue_Audit_Report.md
+# INTEGRATION_CHECKLIST.md
+# INTEGRATION_STATUS.md
+# PROJECT_ANALYSIS_REPORT.md
+# START_TESTING.md
+# TESTING_GUIDE.md
