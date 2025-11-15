@@ -21,7 +21,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)byrl)h*bk3z(wx)&6k*#lx_ej8l@@pdntvomz8(j8=l^!$lut'
+import os
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-)byrl)h*bk3z(wx)&6k*#lx_ej8l@@pdntvomz8(j8=l^!$lut')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -88,10 +89,14 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Support dynamic database path for desktop app
+import os
+DB_PATH = os.environ.get('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3'))
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': DB_PATH,
     }
 }
 
@@ -182,7 +187,12 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue dev server
     "http://127.0.0.1:5173",
+    "http://localhost:8000",  # Electron app
+    "http://127.0.0.1:8000",
 ]
+
+# Allow all origins for desktop app (running from file://)
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 

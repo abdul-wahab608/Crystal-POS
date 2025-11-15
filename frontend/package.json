@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
@@ -14,7 +15,12 @@
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "lint:eslint": "eslint . --fix",
     "lint": "run-s lint:*",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "electron:dev": "cross-env NODE_ENV=development concurrently \"npm run dev\" \"wait-on http://localhost:5173 http://localhost:5174 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win --x64",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "apexcharts": "^5.3.6",
@@ -42,6 +48,10 @@
     "@vue/tsconfig": "^0.7.0",
     "autoprefixer": "^10.4.21",
     "chromedriver": "^135.0.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.22.0",
     "eslint-plugin-oxlint": "^0.16.0",
     "eslint-plugin-vue": "~10.0.0",
@@ -60,6 +70,37 @@
     "vite-plugin-nightwatch": "^0.4.6",
     "vite-plugin-vue-devtools": "^7.7.2",
     "vitest": "^3.1.1",
-    "vue-tsc": "^2.2.8"
+    "vue-tsc": "^2.2.8",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.crystal.pos",
+    "productName": "Crystal POS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/favicon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
   }
 }
