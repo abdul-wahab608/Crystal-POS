@@ -12,7 +12,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Setup management
   isFirstRun: () => ipcRenderer.invoke('is-first-run'),
   startSetup: () => ipcRenderer.invoke('start-setup'),
-  completeSetup: () => ipcRenderer.send('setup-complete'),
+  completeSetup: () => {
+    console.log('Preload: Sending setup-complete event');
+    ipcRenderer.send('setup-complete');
+  },
   
   // Offline/Sync management
   getSyncQueue: () => ipcRenderer.invoke('get-sync-queue'),

@@ -162,11 +162,14 @@
         const setupPromise = window.electronAPI.startSetup();
         const result = await Promise.race([setupPromise, timeoutPromise]);
         
+        console.log('Setup result:', result);
+        
         if (result.success) {
           status.textContent = 'Setup complete! Starting application...';
           description.textContent = 'Your Crystal POS is ready to use.';
           
           setTimeout(() => {
+            console.log('Calling completeSetup...');
             window.electronAPI.completeSetup();
           }, 500);
         } else {

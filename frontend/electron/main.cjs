@@ -188,16 +188,26 @@ async function runFirstTimeSetup() {
     height: 400,
     resizable: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false
     }
   });
 
   setupWindow.loadFile(path.join(__dirname, 'setup.html'));
 
-  // Wait for setup to complete (simulated here)
+  // Wait for setup to complete with timeout fallback
   return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      console.log('Setup timeout reached, auto-completing...');
+      markSetupComplete();
+      setupWindow.close();
+      resolve();
+    }, 10000); // 10 second timeout
+
     ipcMain.once('setup-complete', () => {
+      console.log('Received setup-complete event');
+      clearTimeout(timeout);
       markSetupComplete();
       setupWindow.close();
       resolve();
@@ -214,6 +224,12 @@ ipcMain.handle('get-config', () => {
 
 ipcMain.handle('save-config', (event, config) => {
   saveConfig(config);
+  return { success: true };
+});
+
+ipcMain.handle('start-setup', async () => {
+  console.log('Start setup called from renderer');
+  // Perform any async setup tasks here if needed
   return { success: true };
 });
 
