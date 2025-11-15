@@ -73,7 +73,7 @@
     "vue-tsc": "^2.2.8",
     "wait-on": "^9.0.3"
   },
-  "build": {
+    "build": {
     "appId": "com.crystal.pos",
     "productName": "Crystal POS",
     "directories": {
@@ -83,6 +83,21 @@
       "dist/**/*",
       "electron/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!venv/**",
+          "!__pycache__/**",
+          "!*.pyc",
+          "!build/**",
+          "!dist/**",
+          "!*.spec"
+        ]
+      }
     ],
     "win": {
       "target": "nsis",

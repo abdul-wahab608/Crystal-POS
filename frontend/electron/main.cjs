@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { findAvailablePort } = require('./port-utils.cjs');
 
 let mainWindow;
 let djangoProcess = null;
@@ -87,35 +88,61 @@ function createWindow() {
 async function startBackend() {
   return new Promise((resolve, reject) => {
     const config = loadConfig();
-    const backendPath = isDev 
-      ? path.join(__dirname, '../../backend')
-      : path.join(process.resourcesPath, 'backend');
     
-    const pythonCmd = isDev ? 'python' : path.join(backendPath, 'python', 'python.exe');
-    const managePath = path.join(backendPath, 'manage.py');
+    let backendCmd, backendArgs, backendCwd;
+    
+    if (isDev) {
+      // Development mode - use Python directly
+      backendCwd = path.join(__dirname, '../../backend');
+      backendCmd = 'python';
+      backendArgs = ['manage.py', 'runserver', `127.0.0.1:${config.backendPort}`, '--noreload'];
+    } else {
+      // Production mode - use bundled executable
+      const exePath = path.join(process.resourcesPath, 'backend', 'crystal-backend.exe');
+      
+      // Fallback to Python if executable doesn't exist
+      if (fs.existsSync(exePath)) {
+        backendCmd = exePath;
+        backendArgs = [];
+        backendCwd = path.join(process.resourcesPath, 'backend');
+      } else {
+        // Fallback: try Python in production
+        backendCwd = path.join(process.resourcesPath, 'backend');
+        backendCmd = 'python';
+        backendArgs = ['manage.py', 'runserver', `127.0.0.1:${config.backendPort}`, '--noreload'];
+      }
+    }
 
-    // Set environment variable for database path
+    // Set environment variables
     const env = {
       ...process.env,
       DJANGO_DB_PATH: config.dbPath,
       DJANGO_SECRET_KEY: 'desktop-app-secret-key-' + Date.now(),
-      PYTHONPATH: backendPath
+      DJANGO_PORT: config.backendPort.toString(),
+      PYTHONPATH: backendCwd
     };
 
     console.log('Starting Django backend...');
-    console.log('Backend path:', backendPath);
+    console.log('Backend command:', backendCmd);
+    console.log('Backend path:', backendCwd);
     console.log('Database path:', config.dbPath);
 
-    djangoProcess = spawn(pythonCmd, [managePath, 'runserver', `127.0.0.1:${config.backendPort}`, '--noreload'], {
-      cwd: backendPath,
+    djangoProcess = spawn(backendCmd, backendArgs, {
+      cwd: backendCwd,
       env: env,
       shell: true
     });
 
+    let startupTimeout;
+
     djangoProcess.stdout.on('data', (data) => {
-      console.log(`Django: ${data}`);
-      if (data.toString().includes('Starting development server')) {
-        setTimeout(() => resolve(), 2000); // Wait 2s for server to fully start
+      const output = data.toString();
+      console.log(`Django: ${output}`);
+      
+      // Check if server started successfully
+      if (output.includes('Starting development server') || output.includes('Quit the server')) {
+        if (startupTimeout) clearTimeout(startupTimeout);
+        setTimeout(() => resolve(), 2000);
       }
     });
 
@@ -125,6 +152,7 @@ async function startBackend() {
 
     djangoProcess.on('error', (error) => {
       console.error('Failed to start Django:', error);
+      if (startupTimeout) clearTimeout(startupTimeout);
       reject(error);
     });
 
@@ -133,8 +161,11 @@ async function startBackend() {
       djangoProcess = null;
     });
 
-    // Timeout fallback
-    setTimeout(() => resolve(), 5000);
+    // Timeout fallback - resolve after 8 seconds even if we don't see the message
+    startupTimeout = setTimeout(() => {
+      console.log('Backend startup timeout reached, proceeding...');
+      resolve();
+    }, 8000);
   });
 }
 
@@ -176,7 +207,9 @@ async function runFirstTimeSetup() {
 
 // IPC Handlers
 ipcMain.handle('get-config', () => {
-  return loadConfig();
+  const config = loadConfig();
+  console.log('Sending config to renderer:', config);
+  return config;
 });
 
 ipcMain.handle('save-config', (event, config) => {
@@ -202,7 +235,30 @@ ipcMain.handle('start-setup', async () => {
       const sourceDb = path.join(backendPath, 'db.sqlite3');
       if (fs.existsSync(sourceDb)) {
         fs.copyFileSync(sourceDb, config.dbPath);
+        console.log('Database copied to:', config.dbPath);
+      } else {
+        // Run migrations to create fresh database
+        console.log('Creating new database...');
+        const { spawn } = require('child_process');
+        const pythonCmd = 'python';
+        const migrateProcess = spawn(pythonCmd, ['manage.py', 'migrate'], {
+          cwd: backendPath,
+          env: {
+            ...process.env,
+            DJANGO_DB_PATH: config.dbPath
+          },
+          shell: true
+        });
+        
+        await new Promise((resolve) => {
+          migrateProcess.on('close', () => resolve());
+        });
       }
+    }
+    
+    // Ensure user data directory exists
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true });
     }
     
     markSetupComplete();
@@ -219,6 +275,16 @@ app.whenReady().then(async () => {
     // Check if first run
     if (isFirstRun()) {
       await runFirstTimeSetup();
+    }
+
+    // Find available port for backend
+    const config = loadConfig();
+    const availablePort = await findAvailablePort(config.backendPort);
+    
+    if (availablePort !== config.backendPort) {
+      console.log(`Port ${config.backendPort} is in use, using port ${availablePort}`);
+      config.backendPort = availablePort;
+      saveConfig(config);
     }
 
     // Start Django backend
