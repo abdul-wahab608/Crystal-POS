@@ -73,6 +73,14 @@ backend/build/
 backend/dist/
 *.spec
 
+# Desktop App User Data (development)
+userData/
+appData/
+
+# Electron Builders
+electron-builder.yml
+.electron-builder.yml
+
 # Vite
 .vite/
 .vite-cache/
