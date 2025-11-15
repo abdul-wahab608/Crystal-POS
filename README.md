@@ -4,24 +4,40 @@
 
 **A comprehensive, production-ready business management and point-of-sale system**
 
+**Available as Web Application & Desktop App**
+
 [![Django](https://img.shields.io/badge/Django-5.2.3-green.svg)](https://www.djangoproject.com/)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5.13-brightgreen.svg)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Electron](https://img.shields.io/badge/Electron-Desktop-blue.svg)](https://www.electronjs.org/)
 
 </div>
+
+---
+
+## 🚀 Two Deployment Options
+
+### 🌐 Web Application (master branch)
+Traditional web-based deployment - accessible from any browser
+
+### 💻 Desktop Application (desktop-app branch)
+Standalone Electron desktop app with offline capabilities - works without internet!
 
 ---
 
 ## 📋 Table of Contents
 
 - [About The Project](#about-the-project)
+- [Deployment Options](#deployment-options)
 - [What Crystal POS Does](#what-crystal-pos-does)
 - [Problems It Solves](#problems-it-solves)
 - [Key Features](#key-features)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
+  - [Web Application Setup](#web-application-setup-master-branch)
+  - [Desktop App Setup](#desktop-application-setup-desktop-app-branch)
 - [How to Run](#how-to-run)
 - [Working with the Project](#working-with-the-project)
 - [API Documentation](#api-documentation)
@@ -45,6 +61,38 @@ Crystal POS is a **full-stack, enterprise-grade business management system** des
 - **Modern Architecture**: Fully separated backend/frontend with RESTful APIs
 - **Type-Safe**: Complete TypeScript implementation ensuring code reliability
 - **Production-Ready**: Clean codebase, proper authentication, and scalable architecture
+- **Offline Support** (Desktop): Works without internet connection with automatic data sync
+- **Cross-Platform**: Web browser access OR standalone desktop application
+
+---
+
+## 🚀 Deployment Options
+
+### 🌐 Web Application (master branch)
+Perfect for cloud deployment and remote access
+
+**Pros:**
+- Access from anywhere with internet
+- Easy updates (update server once)
+- Multi-device access
+- Lower client requirements
+- Centralized data
+
+**Best for:** Businesses with stable internet, remote teams, cloud infrastructure
+
+### 💻 Desktop Application (desktop-app branch)
+Standalone Electron app with embedded backend
+
+**Pros:**
+- ✅ Works completely offline
+- ✅ No internet required
+- ✅ Faster performance (local backend)
+- ✅ Auto-sync when online
+- ✅ Data privacy (local storage)
+- ✅ Single .exe installer
+- ✅ Auto-start backend server
+
+**Best for:** Retail stores, unstable internet, data privacy needs, single-location businesses
 
 ---
 
@@ -209,6 +257,7 @@ Export detailed Excel reports with summary and detail sheets:
 - **Authentication**: Simple JWT
 - **Database**: SQLite (development) / PostgreSQL (production)
 - **Python**: 3.8+
+- **Desktop Bundling**: PyInstaller (desktop-app branch)
 
 ### Frontend
 - **Framework**: Vue 3.5.13 (Composition API)
@@ -220,6 +269,13 @@ Export detailed Excel reports with summary and detail sheets:
 - **Excel Export**: XLSX.js + file-saver
 - **Styling**: Tailwind CSS
 - **Testing**: Vitest + Nightwatch
+
+### Desktop App (desktop-app branch)
+- **Desktop Framework**: Electron
+- **Offline Storage**: IndexedDB
+- **Network Detection**: Navigator API
+- **Bundler**: electron-builder
+- **Auto-Updates**: electron-updater (optional)
 
 ### Development Tools
 - **Code Editor**: VS Code recommended
@@ -431,7 +487,15 @@ Crystal/
 
 ## 🚀 Getting Started
 
-### Prerequisites
+> **Important**: Choose the branch based on your deployment needs:
+> - `master` branch: Web application (browser-based)
+> - `desktop-app` branch: Desktop application (Electron-based, offline support)
+
+---
+
+### 🌐 Web Application Setup (master branch)
+
+#### Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -440,16 +504,16 @@ Before you begin, ensure you have the following installed:
 - **Git** - [Download Git](https://git-scm.com/downloads)
 - **Code Editor** - VS Code recommended
 
-### Installation
+#### Installation
 
-#### 1️⃣ Clone the Repository
+**1️⃣ Clone the Repository**
 
 ```bash
-git clone <your-repository-url>
-cd Crystal
+git clone https://github.com/abdul-wahab608/Crystal-POS.git
+cd Crystal-POS
 ```
 
-#### 2️⃣ Backend Setup
+**2️⃣ Backend Setup**
 
 ```bash
 # Navigate to backend directory
@@ -478,7 +542,7 @@ python manage.py createsuperuser
 python manage.py collectstatic --noinput
 ```
 
-#### 3️⃣ Frontend Setup
+**3️⃣ Frontend Setup**
 
 ```bash
 # Navigate to frontend directory (from project root)
@@ -491,15 +555,11 @@ npm install
 npm run build
 ```
 
----
+#### ▶️ How to Run (Web Application)
 
-## ▶️ How to Run
+**Development Mode** - You'll need **two terminal windows**:
 
-### Development Mode (Recommended for Development)
-
-You'll need **two terminal windows** - one for backend, one for frontend:
-
-#### Terminal 1: Start Backend Server
+**Terminal 1: Start Backend Server**
 
 ```bash
 cd backend
@@ -510,7 +570,7 @@ python manage.py runserver
 
 ✅ Backend will be running at: `http://127.0.0.1:8000`
 
-#### Terminal 2: Start Frontend Dev Server
+**Terminal 2: Start Frontend Dev Server**
 
 ```bash
 cd frontend
@@ -519,17 +579,128 @@ npm run dev
 
 ✅ Frontend will be running at: `http://localhost:5173`
 
-### Access the Application
+**Access the Application**
 
 1. **Open your browser** and go to: `http://localhost:5173`
 2. **Login** with the superuser credentials you created
 3. **Start using** the application!
 
-### Admin Panel (Django)
+**Admin Panel (Django)**
 
 Access Django admin at: `http://127.0.0.1:8000/admin/`
 - Use superuser credentials
 - Manage data directly from Django admin
+
+---
+
+### 💻 Desktop Application Setup (desktop-app branch)
+
+#### Prerequisites
+
+Same as web application, plus:
+- **Python 3.8+** (must be in PATH)
+- **Node.js 16+**
+- **Git**
+
+#### Installation
+
+**1️⃣ Clone and Switch to Desktop Branch**
+
+```bash
+git clone https://github.com/abdul-wahab608/Crystal-POS.git
+cd Crystal-POS
+git checkout desktop-app
+```
+
+**2️⃣ Backend Setup**
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+venv\Scripts\activate          # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install PyInstaller for building standalone backend
+pip install pyinstaller
+
+# Run migrations
+python manage.py migrate
+
+# Create superuser
+python manage.py createsuperuser
+```
+
+**3️⃣ Frontend Setup**
+
+```bash
+cd frontend
+
+# Install dependencies (includes Electron)
+npm install
+```
+
+#### ▶️ How to Run (Desktop Application)
+
+**Development Mode**
+
+```bash
+cd frontend
+npm run electron:dev
+```
+
+This will:
+- ✅ Start Vite dev server
+- ✅ Auto-start Django backend
+- ✅ Launch Electron desktop window
+- ✅ Enable hot-reload for development
+
+**First Launch:**
+- Setup window will appear
+- Click "Start Setup" to initialize database
+- Wait for setup to complete (~5 seconds)
+- Main app window will open
+
+**Subsequent Launches:**
+- Skips setup (already configured)
+- Directly opens main window
+- Backend starts automatically in background
+
+#### 📦 Build Desktop Application
+
+**Build for Windows:**
+
+```bash
+cd frontend
+npm run electron:build:win
+```
+
+**Output:**
+- Installer: `frontend/release/Crystal POS Setup x.x.x.exe`
+- Portable: `frontend/release/Crystal POS x.x.x.exe`
+
+**Installation:**
+1. Run the installer
+2. Choose installation directory
+3. Desktop shortcut will be created
+4. Launch Crystal POS from Start Menu or Desktop
+
+**Features:**
+- ✅ Complete offline functionality
+- ✅ No internet required
+- ✅ Auto-sync when online
+- ✅ Embedded Django backend
+- ✅ Single .exe file distribution
+- ✅ Auto-start on app launch
+- ✅ Network status indicator
+- ✅ Sync queue management
+
+---
 
 ### API Documentation
 
@@ -895,9 +1066,11 @@ npm run type-check              # TypeScript checking
 
 ## 🚀 Production Deployment
 
-### Backend Configuration for Production
+### 🌐 Web Application Deployment (master branch)
 
-1. **Update `settings.py`:**
+#### Backend Configuration for Production
+
+**1. Update `settings.py`:**
 ```python
 DEBUG = False
 ALLOWED_HOSTS = ['yourdomain.com', 'www.yourdomain.com']
@@ -922,12 +1095,12 @@ CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000
 ```
 
-2. **Collect Static Files:**
+**2. Collect Static Files:**
 ```bash
 python manage.py collectstatic
 ```
 
-3. **Use Production Server:**
+**3. Use Production Server:**
 ```bash
 # Install gunicorn
 pip install gunicorn
@@ -936,7 +1109,7 @@ pip install gunicorn
 gunicorn core.wsgi:application --bind 0.0.0.0:8000
 ```
 
-### Frontend Build for Production
+#### Frontend Build for Production
 
 ```bash
 cd frontend
@@ -945,8 +1118,69 @@ npm run build
 
 Output will be in `frontend/dist/` - serve these files with Nginx or Apache.
 
+---
+
+### 💻 Desktop Application Distribution (desktop-app branch)
+
+#### Building the Desktop App
+
+**Build Windows Installer:**
+```bash
+cd frontend
+npm run electron:build:win
+```
+
+**Output Files:**
+- `frontend/release/Crystal POS Setup x.x.x.exe` - NSIS Installer
+- `frontend/release/Crystal POS x.x.x.exe` - Portable executable
+
+**Distribution:**
+1. Upload installer to your distribution server
+2. Share download link with users
+3. Users download and run installer
+4. Desktop shortcut created automatically
+5. App works completely offline
+
+**Backend Bundling (Optional - Advanced):**
+
+To create standalone backend executable:
+```bash
+cd backend
+python build_backend.py
+```
+
+This creates `backend/dist/crystal-backend.exe` which can be bundled with Electron.
+
+#### Desktop App Features
+
+✅ **Complete offline functionality**
+- Local SQLite database in user data directory
+- No internet connection required
+- Works in areas with unreliable internet
+
+✅ **Auto-sync capabilities**
+- Detects network status automatically
+- Queues operations when offline
+- Syncs automatically when connection restored
+- Visual sync status indicator
+
+✅ **Easy distribution**
+- Single .exe installer
+- No Python or Node.js required on user machine
+- Automatic backend startup
+- First-run setup wizard
+- Update checking (optional)
+
+✅ **User data isolation**
+- Database stored in user's AppData folder
+- Multiple user support on same machine
+- Clean uninstall process
+
+---
+
 ### Deployment Checklist
 
+#### Web Application (master branch)
 - [ ] Set DEBUG = False
 - [ ] Configure ALLOWED_HOSTS
 - [ ] Generate strong SECRET_KEY
@@ -960,6 +1194,19 @@ Output will be in `frontend/dist/` - serve these files with Nginx or Apache.
 - [ ] Set up backups
 - [ ] Enable monitoring
 - [ ] Configure domain DNS
+
+#### Desktop Application (desktop-app branch)
+- [ ] Test electron:dev mode
+- [ ] Verify backend auto-start
+- [ ] Test offline functionality
+- [ ] Test sync queue
+- [ ] Build production installer
+- [ ] Test on clean Windows machine
+- [ ] Verify first-run setup
+- [ ] Test auto-update (if enabled)
+- [ ] Create distribution package
+- [ ] Write installation guide
+- [ ] Set up download server
 
 ---
 

@@ -59,6 +59,20 @@ dist-ssr/
 frontend/dist/
 *.local
 
+# Electron / Desktop App
+frontend/release/
+frontend/out/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.snap
+frontend/build/
+backend/build/
+backend/dist/
+*.spec
+
 # Vite
 .vite/
 .vite-cache/
