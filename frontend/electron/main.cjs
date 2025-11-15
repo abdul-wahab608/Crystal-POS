@@ -225,6 +225,17 @@ ipcMain.handle('is-first-run', () => {
   return isFirstRun();
 });
 
+ipcMain.handle('get-sync-queue', () => {
+  // This would integrate with the frontend's offline manager
+  // For now, return a placeholder
+  return { total: 0, items: [] };
+});
+
+ipcMain.handle('clear-sync-queue', () => {
+  // Clear sync queue - handled by frontend for now
+  return { success: true };
+});
+
 ipcMain.handle('start-setup', async () => {
   try {
     const config = loadConfig();

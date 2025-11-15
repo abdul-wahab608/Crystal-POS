@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startSetup: () => ipcRenderer.invoke('start-setup'),
   completeSetup: () => ipcRenderer.send('setup-complete'),
   
+  // Offline/Sync management
+  getSyncQueue: () => ipcRenderer.invoke('get-sync-queue'),
+  clearSyncQueue: () => ipcRenderer.invoke('clear-sync-queue'),
+  
   // App info
   platform: process.platform,
   version: process.versions.electron
