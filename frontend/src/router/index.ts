@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router'
 import MainLayout from '../shared/layouts/MainLayout.vue'
 
 // Placeholder views for each module
@@ -15,8 +15,10 @@ const RawMaterialsView = () => import('../modules/raw_materials/views/RawMateria
 const DashboardView = () => import('../views/HomeView.vue')
 const LoginView = () => import('../views/LoginView.vue')
 
+// Use hash history for Electron (file:// protocol), web history for browser
+const isElectron = navigator.userAgent.toLowerCase().indexOf('electron') > -1
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: isElectron ? createWebHashHistory() : createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/login',
