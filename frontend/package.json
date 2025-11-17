@@ -1,7 +1,7 @@
 {
   "name": "crystal-fronend",
-  "version": "1.0.0",
-  "description": "Crystal POS - Point of Sale Desktop Application",
+  "version": "1.0.1",
+  "description": "Crystal POS - Point of Sale Desktop Application with Auto-Setup",
   "author": "Crystal POS Team",
   "private": true,
   "type": "module",

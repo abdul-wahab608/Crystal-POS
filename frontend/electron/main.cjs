@@ -3,28 +3,42 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { findAvailablePort } = require('./port-utils.cjs');
+const SetupStateManager = require('./setup-state.cjs');
+const PythonInstaller = require('./scripts/python-installer.cjs');
+const DependencyInstaller = require('./scripts/dependency-installer.cjs');
+const DatabaseSetup = require('./scripts/database-setup.cjs');
 
 let mainWindow;
 let djangoProcess = null;
 const isDev = process.env.NODE_ENV === 'development';
+let pythonExecutablePath = null; // Store Python path for reuse
 
 // User data directory for storing database and config
 const userDataPath = app.getPath('userData');
 const configPath = path.join(userDataPath, 'config.json');
 const dbPath = path.join(userDataPath, 'db.sqlite3');
-const setupCompletePath = path.join(userDataPath, '.setup_complete');
+
+// Setup state manager
+let setupState = null;
+
+// Initialize setup state manager
+function initSetupState() {
+  if (!setupState) {
+    setupState = new SetupStateManager(userDataPath);
+  }
+  return setupState;
+}
 
 // Check if first run
 function isFirstRun() {
-  return !fs.existsSync(setupCompletePath);
+  const state = initSetupState();
+  return state.isFirstRun();
 }
 
 // Mark setup as complete
 function markSetupComplete() {
-  fs.writeFileSync(setupCompletePath, JSON.stringify({
-    completedAt: new Date().toISOString(),
-    version: app.getVersion()
-  }));
+  const state = initSetupState();
+  state.markComplete(app.getVersion());
 }
 
 // Load or create config
@@ -197,36 +211,38 @@ function stopBackend() {
 
 // Setup process - only runs on first launch
 async function runFirstTimeSetup() {
-  console.log('Running first-time setup...');
+  console.log('Running first-time setup wizard...');
   
-  // Show setup window
+  // Show setup wizard window
   const setupWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
+    width: 700,
+    height: 650,
     resizable: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false
-    }
+    },
+    frame: true,
+    title: 'Crystal POS - First Time Setup'
   });
 
-  setupWindow.loadFile(path.join(__dirname, 'setup.html'));
+  setupWindow.loadFile(path.join(__dirname, 'setup-wizard.html'));
 
-  // Wait for setup to complete with timeout fallback
+  // Wait for setup to complete
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      console.log('Setup timeout reached, auto-completing...');
+    ipcMain.once('setup-complete', () => {
+      console.log('Setup wizard completed successfully');
       markSetupComplete();
       setupWindow.close();
       resolve();
-    }, 10000); // 10 second timeout
-
-    ipcMain.once('setup-complete', () => {
-      console.log('Received setup-complete event');
-      clearTimeout(timeout);
+    });
+    
+    // Handle window close without completing setup
+    setupWindow.on('closed', () => {
+      console.log('Setup window closed');
+      // Mark as complete anyway to prevent infinite loop
       markSetupComplete();
-      setupWindow.close();
       resolve();
     });
   });
@@ -251,6 +267,238 @@ ipcMain.handle('get-user-data-path', () => {
 ipcMain.handle('is-first-run', () => {
   return isFirstRun();
 });
+
+ipcMain.handle('get-setup-state', () => {
+  const state = initSetupState();
+  return state.getState();
+});
+
+ipcMain.handle('reset-setup', () => {
+  const state = initSetupState();
+  state.reset();
+  return { success: true, message: 'Setup state reset successfully' };
+});
+
+ipcMain.handle('check-setup-status', async (event, step) => {
+  console.log(`Checking setup status for: ${step}`);
+  
+  const state = initSetupState();
+  
+  try {
+    // Update step to 'working'
+    state.updateStep(step, 'working');
+    
+    // Execute step-specific logic
+    switch (step) {
+      case 'python':
+        await setupPython(state);
+        break;
+      
+      case 'dependencies':
+        await setupDependencies(state);
+        break;
+      
+      case 'database':
+        await setupDatabase(state);
+        break;
+      
+      case 'admin':
+        await setupAdmin(state);
+        break;
+      
+      default:
+        throw new Error(`Unknown setup step: ${step}`);
+    }
+    
+    // Mark step as complete
+    state.updateStep(step, 'complete');
+    
+    return { 
+      success: true, 
+      step,
+      progress: state.getProgress()
+    };
+  } catch (error) {
+    console.error(`Setup error for ${step}:`, error);
+    state.updateStep(step, 'error', error.message);
+    
+    return { 
+      success: false, 
+      step,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Setup Python - Phase 2
+ */
+async function setupPython(state) {
+  console.log('Starting Python setup...');
+  
+  const pythonInstaller = new PythonInstaller(userDataPath, console);
+  
+  // Check if Python exists
+  const check = await pythonInstaller.isPythonInstalled();
+  
+  if (check.installed) {
+    console.log(`Python already installed: ${check.path} (${check.type})`);
+    
+    // Verify version
+    try {
+      const version = await pythonInstaller.getPythonVersion(check.path);
+      console.log(`Python version: ${version}`);
+    } catch (err) {
+      console.warn('Could not get Python version:', err);
+    }
+    
+    // Store Python path for later use
+    pythonExecutablePath = check.path;
+    
+    return { success: true, path: check.path };
+  }
+  
+  // Python not found - install it
+  console.log('Python not found, installing...');
+  
+  const result = await pythonInstaller.install((status, progress) => {
+    console.log(`Python installation: ${status} ${progress}%`);
+  });
+  
+  if (!result.success) {
+    throw new Error('Failed to install Python');
+  }
+  
+  // Store Python path
+  pythonExecutablePath = result.path;
+  
+  console.log('Python setup complete:', result.path);
+  return result;
+}
+
+/**
+ * Setup Dependencies - Phase 3
+ */
+async function setupDependencies(state) {
+  console.log('Starting dependencies setup...');
+  
+  // Ensure we have Python path
+  if (!pythonExecutablePath) {
+    throw new Error('Python path not available. Run Python setup first.');
+  }
+
+  // Get backend path
+  const backendPath = isDev 
+    ? path.join(__dirname, '../../backend')
+    : path.join(process.resourcesPath, 'backend');
+
+  console.log('Backend path:', backendPath);
+  console.log('Python path:', pythonExecutablePath);
+
+  const depInstaller = new DependencyInstaller(pythonExecutablePath, backendPath, console);
+
+  // Check if requirements.txt exists
+  if (!depInstaller.requirementsExists()) {
+    throw new Error('requirements.txt not found in backend folder');
+  }
+
+  // Check if already installed
+  const alreadyInstalled = await depInstaller.areDependenciesInstalled();
+  
+  if (alreadyInstalled) {
+    console.log('Dependencies already installed');
+    return { success: true, message: 'Dependencies already installed' };
+  }
+
+  // Upgrade pip first
+  console.log('Upgrading pip...');
+  await depInstaller.upgradePip();
+
+  // Install dependencies
+  console.log('Installing dependencies from requirements.txt...');
+  const result = await depInstaller.install((status, progress, message) => {
+    console.log(`Dependencies: ${status} ${progress}% - ${message}`);
+  });
+
+  console.log(`Dependencies setup complete: ${result.packagesInstalled} packages installed`);
+  return result;
+}
+
+/**
+ * Setup Database - Phase 4 (Part 1: Migrations)
+ */
+async function setupDatabase(state) {
+  console.log('Starting database setup...');
+  
+  // Ensure we have Python path
+  if (!pythonExecutablePath) {
+    throw new Error('Python path not available. Run Python setup first.');
+  }
+
+  // Get backend path
+  const backendPath = isDev 
+    ? path.join(__dirname, '../../backend')
+    : path.join(process.resourcesPath, 'backend');
+
+  console.log('Backend path:', backendPath);
+  console.log('Python path:', pythonExecutablePath);
+  console.log('Database path:', dbPath);
+
+  const dbSetup = new DatabaseSetup(pythonExecutablePath, backendPath, dbPath, console);
+
+  // Check if manage.py exists
+  if (!dbSetup.managePyExists()) {
+    throw new Error('manage.py not found in backend folder');
+  }
+
+  // Run migrations
+  console.log('Running database migrations...');
+  const result = await dbSetup.migrate((status, progress) => {
+    console.log(`Database migrations: ${status} ${progress}%`);
+  });
+
+  if (!result.success) {
+    throw new Error('Failed to run migrations');
+  }
+
+  console.log('Database setup complete');
+  return result;
+}
+
+/**
+ * Setup Admin - Phase 4 (Part 2: Create Admin User)
+ */
+async function setupAdmin(state) {
+  console.log('Starting admin user creation...');
+  
+  // Ensure we have Python path
+  if (!pythonExecutablePath) {
+    throw new Error('Python path not available. Run Python setup first.');
+  }
+
+  // Get backend path
+  const backendPath = isDev 
+    ? path.join(__dirname, '../../backend')
+    : path.join(process.resourcesPath, 'backend');
+
+  const dbSetup = new DatabaseSetup(pythonExecutablePath, backendPath, dbPath, console);
+
+  // Create admin user
+  console.log('Creating admin user (admin/admin123)...');
+  const result = await dbSetup.createAdmin('admin', 'admin123', 'admin@crystal.com');
+
+  if (!result.success) {
+    throw new Error('Failed to create admin user');
+  }
+
+  if (result.created) {
+    console.log(`Admin user created: ${result.username} / ${result.password}`);
+  } else {
+    console.log('Admin user already exists');
+  }
+
+  return result;
+}
 
 ipcMain.handle('get-sync-queue', () => {
   // This would integrate with the frontend's offline manager

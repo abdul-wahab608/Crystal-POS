@@ -11,7 +11,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Setup management
   isFirstRun: () => ipcRenderer.invoke('is-first-run'),
+  getSetupState: () => ipcRenderer.invoke('get-setup-state'),
+  resetSetup: () => ipcRenderer.invoke('reset-setup'),
   startSetup: () => ipcRenderer.invoke('start-setup'),
+  checkSetupStatus: (step) => ipcRenderer.invoke('check-setup-status', step),
   completeSetup: () => {
     console.log('Preload: Sending setup-complete event');
     ipcRenderer.send('setup-complete');
