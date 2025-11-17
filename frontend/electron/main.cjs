@@ -124,13 +124,24 @@ async function startBackend() {
 
     console.log('Starting Django backend...');
     console.log('Backend command:', backendCmd);
+    console.log('Backend args:', backendArgs);
     console.log('Backend path:', backendCwd);
     console.log('Database path:', config.dbPath);
+
+    // Test: Try running Python first to see if it's accessible
+    try {
+      const testPython = spawn('python', ['--version'], { shell: true });
+      testPython.stdout.on('data', (data) => console.log(`Python test: ${data}`));
+      testPython.stderr.on('data', (data) => console.log(`Python test: ${data}`));
+    } catch (err) {
+      console.error('Python test failed:', err);
+    }
 
     djangoProcess = spawn(backendCmd, backendArgs, {
       cwd: backendCwd,
       env: env,
-      shell: true
+      shell: true,
+      windowsHide: false  // Show window for debugging
     });
 
     let startupTimeout;

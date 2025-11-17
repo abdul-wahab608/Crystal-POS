@@ -1,6 +1,8 @@
 {
   "name": "crystal-fronend",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Crystal POS - Point of Sale Desktop Application",
+  "author": "Crystal POS Team",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -17,10 +19,10 @@
     "lint": "run-s lint:*",
     "format": "prettier --write src/",
     "electron:dev": "cross-env NODE_ENV=development concurrently \"npm run dev\" \"wait-on http://localhost:5173 http://localhost:5174 && electron .\"",
-    "electron:build": "node scripts/prebuild.js && npm run build && electron-builder",
-    "electron:build:win": "node scripts/prebuild.js && npm run build && electron-builder --win --x64",
-    "electron:build:mac": "node scripts/prebuild.js && npm run build && electron-builder --mac",
-    "electron:build:linux": "node scripts/prebuild.js && npm run build && electron-builder --linux"
+    "electron:build": "node scripts/prebuild.cjs && npm run build-only && electron-builder",
+    "electron:build:win": "node scripts/prebuild.cjs && npm run build-only && electron-builder --win --x64",
+    "electron:build:mac": "node scripts/prebuild.cjs && npm run build-only && electron-builder --mac",
+    "electron:build:linux": "node scripts/prebuild.cjs && npm run build-only && electron-builder --linux"
   },
   "dependencies": {
     "apexcharts": "^5.3.6",
@@ -112,8 +114,8 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "public/favicon.ico",
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -122,16 +124,12 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Crystal POS",
-      "installerIcon": "public/favicon.ico",
-      "uninstallerIcon": "public/favicon.ico",
-      "installerHeaderIcon": "public/favicon.ico",
       "deleteAppDataOnUninstall": false,
       "perMachine": false,
       "runAfterFinish": true
     },
     "mac": {
-      "target": "dmg",
-      "icon": "public/favicon.ico"
+      "target": "dmg"
     },
     "linux": {
       "target": "AppImage",
