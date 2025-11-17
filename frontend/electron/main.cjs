@@ -75,8 +75,10 @@ function createWindow() {
     mainWindow.loadURL(`http://localhost:${vitePort}`);
     mainWindow.webContents.openDevTools();
   } else {
-    // Production mode - load built files
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // Production mode - load built files from app resources
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    console.log('Loading production build from:', indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on('closed', () => {
