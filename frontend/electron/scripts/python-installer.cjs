@@ -241,16 +241,33 @@ class PythonInstaller {
         this.logger.log('site-packages enabled');
       }
 
-      // Step 2: Download get-pip.py
+      // Step 2: Create Scripts directory for pip
+      const scriptsDir = path.join(this.pythonDir, 'Scripts');
+      if (!fs.existsSync(scriptsDir)) {
+        fs.mkdirSync(scriptsDir, { recursive: true });
+        this.logger.log('Created Scripts directory');
+      }
+
+      // Step 3: Download get-pip.py
       const getPipUrl = 'https://bootstrap.pypa.io/get-pip.py';
       const getPipPath = path.join(this.pythonDir, 'get-pip.py');
 
       this.logger.log('Downloading get-pip.py...');
       await this.downloadFile(getPipUrl, getPipPath);
 
-      // Step 3: Run get-pip.py
+      // Step 4: Run get-pip.py with proper environment
       this.logger.log('Installing pip...');
-      await this.runPythonCommand([getPipPath]);
+      await this.runPythonCommand([getPipPath, '--no-warn-script-location'], {
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1'
+        }
+      });
+
+      // Step 5: Verify pip installation
+      this.logger.log('Verifying pip installation...');
+      await this.runPythonCommand(['-m', 'pip', '--version']);
 
       this.logger.log('Pip installed successfully');
 

@@ -110,11 +110,13 @@ class DependencyInstaller {
 
     return new Promise((resolve, reject) => {
       // Use pip install with requirements.txt
+      // Removed --upgrade to avoid conflicts, added --no-cache-dir for embedded Python
       const args = [
         '-m', 'pip', 'install',
         '-r', this.requirementsPath,
-        '--upgrade',
-        '--no-warn-script-location'
+        '--no-cache-dir',
+        '--no-warn-script-location',
+        '--disable-pip-version-check'
       ];
 
       this.logger.log('Running pip install:', this.pythonPath, args.join(' '));
@@ -122,7 +124,12 @@ class DependencyInstaller {
       const process = spawn(this.pythonPath, args, {
         shell: true,
         cwd: this.backendPath,
-        windowsHide: true
+        windowsHide: false,
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1'
+        }
       });
 
       let stdout = '';
@@ -185,10 +192,15 @@ class DependencyInstaller {
 
     return new Promise((resolve, reject) => {
       const process = spawn(this.pythonPath, [
-        '-m', 'pip', 'install', '--upgrade', 'pip'
+        '-m', 'pip', 'install', '--upgrade', 'pip', '--no-warn-script-location', '--disable-pip-version-check'
       ], {
         shell: true,
-        windowsHide: true
+        windowsHide: false,
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1'
+        }
       });
 
       let output = '';
