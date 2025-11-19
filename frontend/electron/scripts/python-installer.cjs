@@ -223,13 +223,33 @@ class PythonInstaller {
     this.logger.log('Setting up pip for embedded Python...');
 
     try {
-      // Download get-pip.py
+      // Step 1: Enable site-packages in python311._pth
+      const pthFile = path.join(this.pythonDir, 'python311._pth');
+      
+      if (fs.existsSync(pthFile)) {
+        this.logger.log('Enabling site-packages in python311._pth...');
+        let pthContent = fs.readFileSync(pthFile, 'utf8');
+        
+        // Uncomment "import site" or add it if not present
+        if (pthContent.includes('#import site')) {
+          pthContent = pthContent.replace('#import site', 'import site');
+        } else if (!pthContent.includes('import site')) {
+          pthContent += '\nimport site\n';
+        }
+        
+        fs.writeFileSync(pthFile, pthContent, 'utf8');
+        this.logger.log('site-packages enabled');
+      }
+
+      // Step 2: Download get-pip.py
       const getPipUrl = 'https://bootstrap.pypa.io/get-pip.py';
       const getPipPath = path.join(this.pythonDir, 'get-pip.py');
 
+      this.logger.log('Downloading get-pip.py...');
       await this.downloadFile(getPipUrl, getPipPath);
 
-      // Run get-pip.py
+      // Step 3: Run get-pip.py
+      this.logger.log('Installing pip...');
       await this.runPythonCommand([getPipPath]);
 
       this.logger.log('Pip installed successfully');
