@@ -24,9 +24,17 @@ def login_view(request):
             {'message': 'Username and password are required'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    user = authenticate(username=username, password=password)
-    
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user = None
+    try:
+        u = User.objects.get(username=username)
+        if u.check_password(password) and u.is_active:
+            user = u
+    except User.DoesNotExist:
+        user = None
+
     if user:
         refresh = RefreshToken.for_user(user)
         return Response({

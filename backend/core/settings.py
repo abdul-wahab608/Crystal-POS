@@ -25,9 +25,10 @@ import os
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-)byrl)h*bk3z(wx)&6k*#lx_ej8l@@pdntvomz8(j8=l^!$lut')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = []
+# Allow localhost for desktop app
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', '*']
 
 
 # Application definition
@@ -89,9 +90,51 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Support dynamic database path for desktop app
+# Auto-detect database path for desktop app installation
 import os
-DB_PATH = os.environ.get('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3'))
+
+def get_database_path():
+    """
+    Auto-detect the correct database path based on installation context.
+    Priority:
+    1. DJANGO_DB_PATH environment variable (explicit override)
+    2. {install_dir}/data/db.sqlite3 for Program Files installation
+    3. BASE_DIR/db.sqlite3 for development
+    """
+    # 1. Check environment variable first
+    env_path = os.environ.get('DJANGO_DB_PATH')
+    if env_path:
+        return env_path
+    
+    # 2. Check if we're in Program Files (production install)
+    program_files = os.environ.get('ProgramFiles', 'C:\\Program Files')
+    program_files_x86 = os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)')
+    
+    base_str = str(BASE_DIR)
+    if program_files in base_str or program_files_x86 in base_str or 'Crystal POS' in base_str:
+        # Production install - use writable data directory
+        install_dir = BASE_DIR.parent  # Go up from backend to install root
+        data_dir = install_dir / 'data'
+        
+        # Ensure data directory exists
+        try:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return str(data_dir / 'db.sqlite3')
+        except PermissionError:
+            pass  # Fall through to AppData
+        
+        # Fallback to AppData if data dir not writable
+        app_data = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
+        from pathlib import Path as PathLib
+        crystal_data = PathLib(app_data) / 'Crystal POS' / 'data'
+        crystal_data.mkdir(parents=True, exist_ok=True)
+        return str(crystal_data / 'db.sqlite3')
+    
+    # 3. Development mode - use backend directory
+    return str(BASE_DIR / 'db.sqlite3')
+
+
+DB_PATH = get_database_path()
 
 DATABASES = {
     'default': {
@@ -100,7 +143,13 @@ DATABASES = {
     }
 }
 
+# Ensure database directory exists
+db_dir = os.path.dirname(DB_PATH)
+if db_dir and not os.path.exists(db_dir):
+    os.makedirs(db_dir, exist_ok=True)
 
+
+AUTH_USER_MODEL = 'users.User'
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -136,6 +185,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Ensure database directory exists
+db_dir = os.path.dirname(DB_PATH)
+if db_dir and not os.path.exists(db_dir):
+    os.makedirs(db_dir, exist_ok=True)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -144,6 +199,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# Ensure authentication works with custom user model
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
@@ -183,18 +243,18 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',
 }
 
-# CORS Settings
+# CORS Settings - Secure configuration for desktop app
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue dev server
     "http://127.0.0.1:5173",
-    "http://localhost:8000",  # Electron app
-    "http://127.0.0.1:8000",
 ]
 
-# Allow all origins for desktop app (running from file://)
-CORS_ALLOW_ALL_ORIGINS = True
-
+# Allow credentials for authenticated requests
 CORS_ALLOW_CREDENTIALS = True
+
+# Allow all origins only in development or for desktop app
+if DEBUG or os.environ.get('ELECTRON_APP') == '1':
+    CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [
     'DELETE',

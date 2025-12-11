@@ -204,7 +204,7 @@ const products = computed(() => {
   const productsArray = store.products || []
   // Filter to show only MANUFACTURED products in the Products tab
   return Array.isArray(productsArray) 
-    ? productsArray.filter(p => !p.product_type || p.product_type === 'MANUFACTURED')
+    ? productsArray.filter((p: any) => !p.product_type && !p.type || (p.product_type || p.type) === 'MANUFACTURED')
     : []
 })
 

@@ -23,8 +23,8 @@ const syncQueue = ref(0)
 
 let unsubscribe: (() => void) | null = null
 
-const updateStatus = (status: { online: boolean }) => {
-  isOnline.value = status.online
+const updateStatus = (status: { isOnline?: boolean; online?: boolean }) => {
+  isOnline.value = status.isOnline ?? status.online ?? false
   updateSyncQueue()
 }
 

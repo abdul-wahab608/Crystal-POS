@@ -132,6 +132,7 @@ const isEditing = computed(() => !!props.material)
 const form = ref<CreateRawMaterial>({
   name: '',
   unit: '',
+  unit_price: 0,
   quantity: 0,
   reorder_level: 0
 })

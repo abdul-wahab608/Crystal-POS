@@ -5,38 +5,48 @@ import indexedDBManager from '../utils/indexedDBManager'
 // Detect if running in Electron or browser
 const isElectron = !!(window as any).electronAPI
 
-// Get base URL - use dynamic port in Electron, default to 8000 in browser
-const getBaseURL = async () => {
+// Get base URL - synchronously in Electron to avoid race conditions
+const getBaseURL = (): string => {
   if (isElectron) {
-    try {
-      const config = await (window as any).electronAPI.getConfig()
-      return `http://127.0.0.1:${config.backendPort}/api`
-    } catch (error) {
-      console.error('Failed to get config from Electron:', error)
-      return 'http://localhost:8000/api'
-    }
+    // In Electron, backend port is always 8000 (default in config)
+    // We'll update this after config loads, but start with default
+    return 'http://127.0.0.1:8000/api'
   }
   return 'http://localhost:8000/api'
 }
 
+// Initialize base URL
+let baseURL = getBaseURL()
+
+// Update base URL after Electron config loads
+if (isElectron) {
+  (async () => {
+    try {
+      const config = await (window as any).electronAPI.getConfig()
+      baseURL = `http://127.0.0.1:${config.backendPort}/api`
+      api.defaults.baseURL = baseURL
+      console.log('API Base URL updated:', baseURL)
+    } catch (error) {
+      console.error('Failed to get config from Electron, using default port 8000:', error)
+    }
+  })()
+}
+
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api', // Default, will be updated
-  timeout: 10000,
+  baseURL: baseURL,
+  timeout: 30000, // 30s for migrations and setup operations
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Update base URL dynamically on initialization
-getBaseURL().then(url => {
-  api.defaults.baseURL = url
-  console.log('API Base URL:', url)
-})
-
 // Request interceptor to add auth token
 api.interceptors.request.use(
   async (config) => {
+    // Update baseURL in case it changed (though it's set on instance already)
+    config.baseURL = baseURL
+    
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`

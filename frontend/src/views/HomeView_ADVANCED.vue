@@ -44,12 +44,12 @@ onMounted(async () => {
 
 // ==================== INVENTORY ANALYTICS ====================
 const inventoryByProduct = computed(() => {
-  return (productsStore.products || []).map(p => ({
+  return (productsStore.products || []).map((p: any) => ({
     id: p.id,
     name: p.name,
-    type: p.product_type,
+    type: p.type || p.product_type,
     quantity: p.quantity || 0,
-    value: (p.quantity || 0) * (p.price || 0),
+    value: (p.quantity || 0) * (p.cost_per_unit || p.price || 0),
     status: p.quantity === 0 ? 'Out of Stock' : p.quantity <= 10 ? 'Low Stock' : 'In Stock'
   })).sort((a, b) => b.value - a.value)
 })
@@ -78,9 +78,9 @@ const totalInventoryValue = computed(() =>
 
 // ==================== SALES ANALYTICS ====================
 const salesByCustomer = computed(() => {
-  const customerMap: Record<number, { id: number; name: string; totalSales: number; transactionCount: number }> = {}
+  const customerMap: Record<number, { id: number; name: string; totalSales: number; transactionCount: number }> = {};
   
-  (salesStore.sales || []).forEach(sale => {
+  (salesStore.sales || []).forEach((sale: any) => {
     const customerId = sale.customer
     const customerName = sale.customer_name || 'Unknown'
     
@@ -101,9 +101,9 @@ const salesByCustomer = computed(() => {
 })
 
 const salesByProduct = computed(() => {
-  const productMap: Record<number, { id: number; name: string; quantitySold: number; revenue: number }> = {}
+  const productMap: Record<number, { id: number; name: string; quantitySold: number; revenue: number }> = {};
   
-  (salesStore.sales || []).forEach(sale => {
+  (salesStore.sales || []).forEach((sale: any) => {
     (sale.sale_items || []).forEach((item: any) => {
       const productId = item.product
       if (productMap[productId]) {
@@ -124,9 +124,9 @@ const salesByProduct = computed(() => {
 })
 
 const salesByMonth = computed(() => {
-  const monthMap: Record<string, number> = {}
+  const monthMap: Record<string, number> = {};
   
-  (salesStore.sales || []).forEach(sale => {
+  (salesStore.sales || []).forEach((sale: any) => {
     if (!sale.date) return
     const date = new Date(sale.date)
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -144,9 +144,9 @@ const totalSalesRevenue = computed(() => (salesStore.sales || []).reduce((sum, s
 
 // ==================== VENDOR ANALYTICS ====================
 const purchasesByVendor = computed(() => {
-  const vendorMap: Record<number, { id: number; name: string; totalPurchases: number; transactionCount: number; products: string[] }> = {}
+  const vendorMap: Record<number, { id: number; name: string; totalPurchases: number; transactionCount: number; products: string[] }> = {};
   
-  (purchasesStore.purchases || []).forEach(purchase => {
+  (purchasesStore.purchases || []).forEach((purchase: any) => {
     const vendorId = purchase.vendor
     const vendorName = purchase.vendor_name || 'Unknown'
     
@@ -185,9 +185,9 @@ const incomingByMethod = computed(() => {
 })
 
 const incomingByCustomer = computed(() => {
-  const customerMap: Record<number, { name: string; totalAmount: number; paymentCount: number }> = {}
+  const customerMap: Record<number, { name: string; totalAmount: number; paymentCount: number }> = {};
   
-  incomingPayments.value.forEach(payment => {
+  incomingPayments.value.forEach((payment: any) => {
     const customerId = payment.customer
     if (!customerId) return
     
@@ -228,9 +228,9 @@ const outgoingByMethod = computed(() => {
 })
 
 const outgoingByVendor = computed(() => {
-  const vendorMap: Record<number, { name: string; totalAmount: number; paymentCount: number }> = {}
+  const vendorMap: Record<number, { name: string; totalAmount: number; paymentCount: number }> = {};
   
-  outgoingPayments.value.forEach(payment => {
+  outgoingPayments.value.forEach((payment: any) => {
     const vendorId = payment.vendor
     if (!vendorId) return
     

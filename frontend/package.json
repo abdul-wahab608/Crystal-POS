@@ -1,146 +1,139 @@
 {
-  "name": "crystal-fronend",
-  "version": "1.0.1",
-  "description": "Crystal POS - Point of Sale Desktop Application with Auto-Setup",
-  "author": "Crystal POS Team",
-  "private": true,
-  "type": "module",
-  "main": "electron/main.cjs",
-  "scripts": {
-    "dev": "vite",
-    "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
-    "test:unit": "vitest",
-    "test:e2e": "nightwatch tests/e2e/*",
-    "build-only": "vite build",
-    "type-check": "vue-tsc --build",
-    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
-    "lint:eslint": "eslint . --fix",
-    "lint": "run-s lint:*",
-    "format": "prettier --write src/",
-    "electron:dev": "cross-env NODE_ENV=development concurrently \"npm run dev\" \"wait-on http://localhost:5173 http://localhost:5174 && electron .\"",
-    "electron:build": "node scripts/prebuild.cjs && npm run build-only && electron-builder",
-    "electron:build:win": "node scripts/prebuild.cjs && npm run build-only && electron-builder --win --x64",
-    "electron:build:mac": "node scripts/prebuild.cjs && npm run build-only && electron-builder --mac",
-    "electron:build:linux": "node scripts/prebuild.cjs && npm run build-only && electron-builder --linux"
-  },
-  "dependencies": {
-    "apexcharts": "^5.3.6",
-    "axios": "^1.10.0",
-    "file-saver": "^2.0.5",
-    "pinia": "^3.0.1",
-    "vue": "^3.5.13",
-    "vue-router": "^4.5.0",
-    "vue3-apexcharts": "^1.10.0",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@nightwatch/vue": "^3.1.2",
-    "@tailwindcss/postcss": "^4.1.10",
-    "@tsconfig/node22": "^22.0.1",
-    "@types/file-saver": "^2.0.7",
-    "@types/jsdom": "^21.1.7",
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-vue": "^5.2.3",
-    "@vitejs/plugin-vue-jsx": "^4.1.2",
-    "@vitest/eslint-plugin": "^1.1.39",
-    "@vue/eslint-config-prettier": "^10.2.0",
-    "@vue/eslint-config-typescript": "^14.5.0",
-    "@vue/test-utils": "^2.4.6",
-    "@vue/tsconfig": "^0.7.0",
-    "adm-zip": "^0.5.16",
-    "autoprefixer": "^10.4.21",
-    "chromedriver": "^135.0.0",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
-    "electron": "^39.2.0",
-    "electron-builder": "^26.0.12",
-    "eslint": "^9.22.0",
-    "eslint-plugin-oxlint": "^0.16.0",
-    "eslint-plugin-vue": "~10.0.0",
-    "geckodriver": "^5.0.0",
-    "jiti": "^2.4.2",
-    "jsdom": "^26.0.0",
-    "nightwatch": "^3.12.1",
-    "npm-run-all2": "^7.0.2",
-    "oxlint": "^0.16.0",
-    "postcss": "^8.5.6",
-    "prettier": "3.5.3",
-    "tailwindcss": "^4.1.10",
-    "ts-node": "^10.9.2",
-    "typescript": "~5.8.0",
-    "vite": "^6.2.4",
-    "vite-plugin-nightwatch": "^0.4.6",
-    "vite-plugin-vue-devtools": "^7.7.2",
-    "vitest": "^3.1.1",
-    "vue-tsc": "^2.2.8",
-    "wait-on": "^9.0.3"
-  },
-  "build": {
-    "appId": "com.crystal.pos",
-    "productName": "Crystal POS",
-    "copyright": "Copyright © 2025 Crystal POS",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
+    "name":  "crystal-fronend",
+    "version":  "1.0.1",
+    "description":  "Crystal POS - Point of Sale Desktop Application with Auto-Setup",
+    "author":  "Crystal POS Team",
+    "private":  true,
+    "type":  "module",
+    "main":  "electron/main.cjs",
+    "scripts":  {
+                    "dev":  "vite",
+                    "build":  "vite build",
+                    "preview":  "vite preview",
+                    "test:unit":  "vitest",
+                    "test:e2e":  "nightwatch tests/e2e/*",
+                    "build-only":  "vite build",
+                    "type-check":  "vue-tsc --build",
+                    "lint:oxlint":  "oxlint . --fix -D correctness --ignore-path .gitignore",
+                    "lint:eslint":  "eslint . --fix",
+                    "lint":  "run-s lint:*",
+                    "format":  "prettier --write src/",
+                    "electron:dev":  "cross-env NODE_ENV=development concurrently \"npm run dev\" \"wait-on http://localhost:5173 http://localhost:5174 \u0026\u0026 electron .\"",
+                    "electron:build":  "node scripts/prebuild.cjs \u0026\u0026 npm run build-only \u0026\u0026 electron-builder",
+                    "electron:build:win":  "node scripts/prebuild.cjs \u0026\u0026 npm run build-only \u0026\u0026 electron-builder --win --x64",
+                    "electron:build:mac":  "node scripts/prebuild.cjs \u0026\u0026 npm run build-only \u0026\u0026 electron-builder --mac",
+                    "electron:build:linux":  "node scripts/prebuild.cjs \u0026\u0026 npm run build-only \u0026\u0026 electron-builder --linux",
+                    "build:full":  "node scripts/build/build-pipeline.cjs",
+                    "build:validate-env":  "node scripts/build/1-validate-environment.cjs",
+                    "build:backend":  "node scripts/build/2-prepare-backend.cjs",
+                    "build:frontend":  "node scripts/build/3-build-frontend.cjs",
+                    "build:validate":  "node scripts/build/4-validate-builds.cjs",
+                    "build:electron":  "node scripts/build/5-package-electron.cjs",
+                    "build:validate-installer":  "node scripts/build/6-validate-installer.cjs",
+                    "electron:start": "electron electron/main.cjs"
     },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "package.json",
-      "!node_modules/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "electron/resources/python-runtime/python",
-        "to": "python-runtime/python"
-      },
-      {
-        "from": "../backend",
-        "to": "backend",
-        "filter": [
-          "**/*",
-          "!venv/**",
-          "!__pycache__/**",
-          "!*.pyc",
-          "!*.pyo",
-          "!build/**",
-          "!dist/**",
-          "!*.spec",
-          "!.pytest_cache/**",
-          "!*.log"
-        ]
-      }
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "${productName}-Setup-${version}.${ext}",
-      "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "allowElevation": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Crystal POS",
-      "deleteAppDataOnUninstall": false,
-      "perMachine": false,
-      "runAfterFinish": true
-    },
-    "mac": {
-      "target": "dmg"
-    },
-    "linux": {
-      "target": "AppImage",
-      "category": "Office"
-    }
-  }
+    "dependencies":  {
+                         "apexcharts":  "^5.3.6",
+                         "axios":  "^1.10.0",
+                         "file-saver":  "^2.0.5",
+                         "pinia":  "^3.0.1",
+                         "vue":  "^3.5.13",
+                         "vue-router":  "^4.5.0",
+                         "vue3-apexcharts":  "^1.10.0",
+                         "xlsx":  "^0.18.5"
+                     },
+    "devDependencies":  {
+                            "@nightwatch/vue":  "^3.1.2",
+                            "@tailwindcss/postcss":  "^4.1.10",
+                            "@tsconfig/node22":  "^22.0.1",
+                            "@types/file-saver":  "^2.0.7",
+                            "@types/jsdom":  "^21.1.7",
+                            "@types/node":  "^22.14.0",
+                            "@vitejs/plugin-vue":  "^5.2.3",
+                            "@vitejs/plugin-vue-jsx":  "^4.1.2",
+                            "@vitest/eslint-plugin":  "^1.1.39",
+                            "@vue/eslint-config-prettier":  "^10.2.0",
+                            "@vue/eslint-config-typescript":  "^14.5.0",
+                            "@vue/test-utils":  "^2.4.6",
+                            "@vue/tsconfig":  "^0.7.0",
+                            "adm-zip":  "^0.5.16",
+                            "autoprefixer":  "^10.4.21",
+                            "chromedriver":  "^135.0.0",
+                            "concurrently":  "^9.2.1",
+                            "cross-env":  "^10.1.0",
+                                "electron":  "latest",
+                            "electron-builder":  "^26.0.12",
+                            "eslint":  "^9.22.0",
+                            "eslint-plugin-oxlint":  "^0.16.0",
+                            "eslint-plugin-vue":  "~10.0.0",
+                            "geckodriver":  "^5.0.0",
+                            "jiti":  "^2.4.2",
+                            "jsdom":  "^26.0.0",
+                            "nightwatch":  "^3.12.1",
+                            "npm-run-all2":  "^7.0.2",
+                            "oxlint":  "^0.16.0",
+                            "postcss":  "^8.5.6",
+                            "prettier":  "3.5.3",
+                            "tailwindcss":  "^4.1.10",
+                            "ts-node":  "^10.9.2",
+                            "typescript":  "~5.8.0",
+                            "vite":  "^6.2.4",
+                            "vite-plugin-nightwatch":  "^0.4.6",
+                            "vite-plugin-vue-devtools":  "^7.7.2",
+                            "vitest":  "^3.1.1",
+                            "vue-tsc":  "^2.2.8",
+                            "wait-on":  "^9.0.3"
+                        },
+    "build":  {
+                  "appId":  "com.crystal.pos",
+                  "productName":  "Crystal POS",
+                  "copyright":  "Copyright © 2025 Crystal POS",
+                  "asar":  false,
+                  "directories":  {
+                                      "output":  "release",
+                                      "buildResources":  "build"
+                                  },
+                  "files":  [
+                                "dist/**/*",
+                                "electron/**/*",
+                                "package.json",
+                                "!node_modules/**/*"
+                            ],
+                  "extraResources":  [
+                                         {
+                                             "from":  "electron/resources/python-runtime",
+                                             "to":  "python-runtime"
+                                         }
+                                     ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ],
+                              "artifactName":  "${productName}-Setup-${version}.${ext}",
+                              "signAndEditExecutable":  false
+                          },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "allowElevation":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  true,
+                               "shortcutName":  "Crystal POS",
+                               "deleteAppDataOnUninstall":  true,
+                               "perMachine":  false,
+                               "runAfterFinish":  true
+                           },
+                  "mac":  {
+                              "target":  "dmg"
+                          },
+                  "linux":  {
+                                "target":  "AppImage",
+                                "category":  "Office"
+                            }
+              }
 }

@@ -92,8 +92,8 @@ const cachedItems = ref(0)
 let unsubscribe: (() => void) | null = null
 let intervalId: number | null = null
 
-const updateStatus = (status: { online: boolean }) => {
-  isOnline.value = status.online
+const updateStatus = (status: { isOnline?: boolean; online?: boolean }) => {
+  isOnline.value = status.isOnline ?? status.online ?? false
   updateSyncQueueStatus()
 }
 

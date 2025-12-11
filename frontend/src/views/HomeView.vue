@@ -7,6 +7,7 @@ import { useSalesStore } from '../modules/sales/stores/sales'
 import { usePurchasesStore } from '../modules/purchases/stores/purchases'
 import { usePaymentsStore} from '../modules/payments/stores/payments'
 import { useRawMaterialsStore } from '../modules/raw_materials/stores/raw_materials'
+import { errorLogger } from '../shared/utils/errorLogger'
 
 const productsStore = useProductsStore()
 const customersStore = useCustomersStore()
@@ -31,14 +32,38 @@ onMounted(async () => {
   loading.value = true
   try {
     await Promise.all([
-      productsStore.fetchProducts().catch(() => {}),
-      customersStore.fetchCustomers().catch(() => {}),
-      vendorsStore.fetchVendors().catch(() => {}),
-      salesStore.fetchSales().catch(() => {}),
-      purchasesStore.fetchPurchases().catch(() => {}),
-      paymentsStore.fetchPayments().catch(() => {}),
-      rawMaterialsStore.fetchMaterials().catch(() => {})
+      productsStore.fetchProducts().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchProducts' })
+        throw e
+      }),
+      customersStore.fetchCustomers().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchCustomers' })
+        throw e
+      }),
+      vendorsStore.fetchVendors().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchVendors' })
+        throw e
+      }),
+      salesStore.fetchSales().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchSales' })
+        throw e
+      }),
+      purchasesStore.fetchPurchases().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchPurchases' })
+        throw e
+      }),
+      paymentsStore.fetchPayments().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchPayments' })
+        throw e
+      }),
+      rawMaterialsStore.fetchMaterials().catch((e) => {
+        errorLogger.logError(e, { component: 'HomeView', action: 'fetchMaterials' })
+        throw e
+      })
     ])
+  } catch (error) {
+    // Log aggregate error but allow app to continue with partial data
+    console.error('Some data failed to load, continuing with available data')
   } finally {
     loading.value = false
   }

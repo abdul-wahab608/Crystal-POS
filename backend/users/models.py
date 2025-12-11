@@ -17,6 +17,9 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=STAFF)
     phone = models.CharField(max_length=20, blank=True, null=True)
     
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
+
     class Meta:
         verbose_name = 'User'
         verbose_name_plural = 'Users'

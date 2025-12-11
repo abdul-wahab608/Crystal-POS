@@ -3,6 +3,10 @@
  */
 
 class OfflineManager {
+  isOnline: boolean;
+  listeners: Set<(status: { isOnline: boolean }) => void>;
+  syncQueue: any[];
+
   constructor() {
     this.isOnline = navigator.onLine;
     this.listeners = new Set();
@@ -47,7 +51,7 @@ class OfflineManager {
   /**
    * Subscribe to network status changes
    */
-  subscribe(callback) {
+  subscribe(callback: (status: { isOnline: boolean }) => void) {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
@@ -55,14 +59,14 @@ class OfflineManager {
   /**
    * Notify all listeners
    */
-  notifyListeners(status) {
-    this.listeners.forEach(callback => callback(status));
+  notifyListeners(status: { isOnline?: boolean; online?: boolean }) {
+    this.listeners.forEach(callback => callback(status as { isOnline: boolean }));
   }
 
   /**
    * Add request to sync queue
    */
-  addToSyncQueue(request) {
+  addToSyncQueue(request: any) {
     const queueItem = {
       id: Date.now() + Math.random(),
       timestamp: new Date().toISOString(),
@@ -81,10 +85,10 @@ class OfflineManager {
   }
 
   /**
-   * Remove item from sync queue
+   * Remove request from sync queue
    */
-  removeFromSyncQueue(id) {
-    this.syncQueue = this.syncQueue.filter(item => item.id !== id);
+  removeFromSyncQueue(id: any) {
+    this.syncQueue = this.syncQueue.filter((item: any) => item.id !== id);
     this.saveSyncQueue();
   }
 
