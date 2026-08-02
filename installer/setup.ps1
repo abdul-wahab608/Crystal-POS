@@ -343,7 +343,10 @@ $StepSuccess = Invoke-StepWithErrorHandling -StepName "Upgrade pip" -Action {
     }
     
     Write-Log "Installing setuptools and wheel..."
-    $output = & "$VenvPip" install --upgrade setuptools wheel 2>&1
+    # setuptools>=81 removed pkg_resources entirely, which djangorestframework-simplejwt==5.3.0
+    # still imports at module load time. Pinning below that keeps every Django command from
+    # crashing with "ModuleNotFoundError: No module named 'pkg_resources'".
+    $output = & "$VenvPip" install --upgrade "setuptools<81" wheel 2>&1
     $output | ForEach-Object { Write-Log "  $_" "DEBUG" }
     
     Write-Log "pip and setuptools ready" "SUCCESS"
