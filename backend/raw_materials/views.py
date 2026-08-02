@@ -12,14 +12,60 @@ from .serializers import (
     RawMaterialUsageCreateSerializer,
     RawMaterialPurchaseCreateSerializer
 )
+from core.mixins import BulkImportMixin, BulkExportMixin, BatchActionsMixin
 
 # Create your views here.
 
-class RawMaterialViewSet(viewsets.ModelViewSet):
+class RawMaterialViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, viewsets.ModelViewSet):
     queryset = RawMaterial.objects.all()
     serializer_class = RawMaterialSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'post', 'put', 'patch', 'delete']
+    
+    # Batch update allowed fields
+    batch_update_fields = ['reorder_level']
+    
+    # Import configuration
+    import_entity_type = 'raw_material'
+    import_unique_fields = ['name', 'unit']  # Unique together
+    import_fields = {
+        'name': {
+            'required': True,
+            'type': 'string',
+            'example': 'Steel Rod',
+            'aliases': ['material_name', 'item', 'item_name', 'material', 'raw_material'],
+        },
+        'unit': {
+            'required': True,
+            'type': 'unit',
+            'example': 'KG',
+            'aliases': ['uom', 'unit_of_measure', 'measurement'],
+        },
+        'quantity': {
+            'required': False,
+            'type': 'decimal',
+            'default': 0,
+            'example': '100',
+            'aliases': ['qty', 'stock', 'initial_quantity', 'initial_stock', 'opening_stock'],
+        },
+        'reorder_level': {
+            'required': False,
+            'type': 'decimal',
+            'default': 0,
+            'example': '10',
+            'aliases': ['reorder', 'minimum_stock', 'min_stock', 'threshold'],
+        },
+    }
+    
+    # Export configuration
+    export_filename = 'raw_materials'
+    export_fields = {
+        'name': {'label': 'Material Name', 'type': 'string'},
+        'unit': {'label': 'Unit', 'type': 'string'},
+        'quantity': {'label': 'Quantity', 'type': 'decimal'},
+        'reorder_level': {'label': 'Reorder Level', 'type': 'decimal'},
+        'created_at': {'label': 'Created At', 'type': 'datetime'},
+    }
 
     def create(self, request, *args, **kwargs):
         name = request.data.get('name')
