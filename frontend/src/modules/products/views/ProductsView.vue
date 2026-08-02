@@ -3,13 +3,31 @@
     <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Products Management</h1>
-      <button @click="showAddForm = true" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Product
-      </button>
+      <div class="header-actions">
+        <ExportButton entityType="products" />
+        <button v-if="authStore.canImport" @click="showImportWizard = true" class="btn-secondary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+          </svg>
+          Import
+        </button>
+        <button @click="showAddForm = true" class="btn-primary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Product
+        </button>
+      </div>
     </div>
+
+    <!-- Batch Actions Toolbar -->
+    <BatchActionsToolbar 
+      entityType="products"
+      entityLabel="product"
+      :showActivate="false"
+      :showDeactivate="false"
+      @action-complete="handleBatchActionComplete"
+    />
 
     <!-- Loading State -->
     <div v-if="store.loading" class="loading-state">
@@ -43,12 +61,20 @@
 
       <!-- Search and Filters -->
       <div class="filters-section">
-        <input 
-          v-model="searchTerm" 
-          type="text" 
-          placeholder="Search products..." 
+        <input
+          v-model="searchTerm"
+          type="text"
+          placeholder="Search products..."
           class="search-input"
         />
+        <select v-model="sizeRangeFilter" class="form-input filter-select">
+          <option value="">All Size Ranges</option>
+          <option v-for="sr in sizeRanges" :key="sr.id" :value="sr.id">{{ sr.name }}</option>
+        </select>
+        <select v-model="colorFilter" class="form-input filter-select">
+          <option value="">All Colors</option>
+          <option v-for="c in colors" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
       </div>
 
       <!-- Products Table -->
@@ -56,27 +82,50 @@
         <table class="products-table">
           <thead>
             <tr>
+              <th class="checkbox-col">
+                <SelectAllCheckbox 
+                  entityType="products" 
+                  :allIds="filteredProducts.map(p => p.id)" 
+                />
+              </th>
               <th>Name</th>
               <th>Unit</th>
               <th>Price</th>
-              <th>Stock</th>
-              <th>Value</th>
+              <th>Stock (dozens)</th>
+              <th>Stock (pcs)</th>
+              <th>Variants</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="product in filteredProducts" :key="product.id" class="table-row">
+              <td class="checkbox-col">
+                <SelectableCheckbox entityType="products" :id="product.id" />
+              </td>
               <td>{{ product.name }}</td>
               <td>
                 <span class="unit-badge">{{ product.unit }}</span>
               </td>
               <td>₨{{ Number(product.cop).toFixed(2) }}</td>
               <td>
-                <span :class="Number(product.quantity) < 10 ? 'low-stock' : ''">
+                <span :class="totalVariantDozens(product) < 5 ? 'low-stock' : ''">
+                  {{ totalVariantDozens(product) }} dz
+                </span>
+              </td>
+              <td>
+                <span :class="Number(product.quantity) < 60 ? 'low-stock' : ''">
                   {{ product.quantity }}
                 </span>
               </td>
-              <td>₨{{ (Number(product.quantity) * Number(product.cop)).toFixed(2) }}</td>
+              <td>
+                <ul>
+                  <li v-for="variant in product.variants" :key="variant.id">
+                    Size: {{ getSizeRangeName(variant.size_range) }},
+                    Color: {{ getColorName(variant.color) }},
+                    Qty: {{ variant.quantity_dozens }} dozens
+                  </li>
+                </ul>
+              </td>
               <td>
                 <div class="actions">
                   <button @click="editProduct(product)" class="action-btn edit">Edit</button>
@@ -93,6 +142,12 @@
           <button @click="showAddForm = true" class="btn-primary">Add Your First Product</button>
         </div>
       </div>
+    </div>
+
+    <!-- Size Range and Color Management -->
+    <div class="flex gap-8 mb-6">
+      <SizeRangeManager />
+      <ColorManager />
     </div>
 
     <!-- Add/Edit Product Modal -->
@@ -144,6 +199,14 @@
             </select>
           </div>
           
+          <div class="form-group">
+            <label for="sizeRange">Size Range</label>
+            <select id="sizeRange" v-model="form.size_range" required class="form-input">
+              <option value="">Select Size Range</option>
+              <option v-for="sr in sizeRanges" :key="sr.id" :value="sr.id">{{ sr.name }}</option>
+            </select>
+          </div>
+          
           <div v-if="showEditForm" class="form-group">
             <label for="price">Unit Price</label>
             <input 
@@ -166,6 +229,25 @@
               class="form-input"
             />
           </div>
+
+          <div class="form-group">
+            <label>Product Variants (Size, Color, Quantity in Dozens)</label>
+            <div class="variant-list mb-2">
+              <div v-for="(variant, idx) in form.variants" :key="idx" class="flex gap-2 items-center mb-1">
+                <select v-model="variant.size_range" required class="form-input w-32">
+                  <option value="">Size Range</option>
+                  <option v-for="sr in sizeRanges" :key="sr.id" :value="sr.id">{{ sr.name }}</option>
+                </select>
+                <select v-model="variant.color" required class="form-input w-32">
+                  <option value="">Color</option>
+                  <option v-for="c in colors" :key="c.id" :value="c.id">{{ c.name }}</option>
+                </select>
+                <input v-model.number="variant.quantity_dozens" type="number" min="0" placeholder="Qty (dozens)" class="form-input w-24" required />
+                <button type="button" @click="removeVariant(idx)" class="btn btn-danger">Delete</button>
+              </div>
+            </div>
+            <button type="button" @click="addVariant" class="btn btn-secondary">Add Variant</button>
+          </div>
           
           <div class="form-actions">
             <button type="button" @click="closeForm" class="btn-secondary">Cancel</button>
@@ -176,28 +258,62 @@
         </form>
       </div>
     </div>
+
+    <!-- Import Wizard -->
+    <ImportWizard 
+      v-if="showImportWizard"
+      entityType="products"
+      @close="handleImportClose"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useProductsStore } from '../stores/products'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
+import ExportButton from '../../../shared/components/ExportButton.vue'
+import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
+import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
+import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { useBatchActionsStore } from '../../../shared/stores/batchActions'
+import SizeRangeManager from '../components/SizeRangeManager.vue'
+import ColorManager from '../components/ColorManager.vue'
+import { useSizeRangeStore } from '../stores/sizeRange'
+import { useColorStore } from '../stores/color'
+import { useProductVariantStore } from '../stores/productVariant'
 
 const store = useProductsStore()
+const authStore = useAuthStore()
+const batchStore = useBatchActionsStore()
+const sizeRangeStore = useSizeRangeStore()
+const colorStore = useColorStore()
+const productVariantStore = useProductVariantStore()
+const { sizeRanges } = storeToRefs(sizeRangeStore)
+const { colors } = storeToRefs(colorStore)
 const searchTerm = ref('')
+const sizeRangeFilter = ref('')
+const colorFilter = ref('')
 const showAddForm = ref(false)
 const showEditForm = ref(false)
+const showImportWizard = ref(false)
 const editingProduct = ref<any>(null)
 
 const form = ref({
   name: '',
   unit: 'PCS' as 'M' | 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON',
   cop: 0,
-  quantity: 0
+  quantity: 0,
+  size_range: '',
+  variants: [{ size_range: '', color: '', quantity_dozens: 0 }]
 })
 
 onMounted(() => {
   store.fetchProducts()
+  sizeRangeStore.fetchSizeRanges()
+  colorStore.fetchColors()
 })
 
 const products = computed(() => {
@@ -209,12 +325,24 @@ const products = computed(() => {
 })
 
 const filteredProducts = computed(() => {
-  const productsArray = products.value
+  let productsArray = products.value
   if (!Array.isArray(productsArray)) return []
-  if (!searchTerm.value) return productsArray
-  return productsArray.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.value.toLowerCase())
-  )
+  if (searchTerm.value) {
+    productsArray = productsArray.filter(p =>
+      p.name.toLowerCase().includes(searchTerm.value.toLowerCase())
+    )
+  }
+  if (sizeRangeFilter.value) {
+    productsArray = productsArray.filter((p: any) =>
+      (p.variants || []).some((v: any) => v.size_range === Number(sizeRangeFilter.value))
+    )
+  }
+  if (colorFilter.value) {
+    productsArray = productsArray.filter((p: any) =>
+      (p.variants || []).some((v: any) => v.color === Number(colorFilter.value))
+    )
+  }
+  return productsArray
 })
 
 const lowStockCount = computed(() => {
@@ -235,7 +363,9 @@ function editProduct(product: any) {
     name: product.name,
     unit: product.unit as typeof form.value.unit,
     cop: product.cop,
-    quantity: product.quantity
+    quantity: product.quantity,
+    size_range: product.size_range,
+    variants: product.variants || [{ size_range: '', color: '', quantity_dozens: 0 }]
   }
   showEditForm.value = true
 }
@@ -248,33 +378,44 @@ function deleteProduct(id: number) {
 
 async function saveProduct() {
   try {
+    let productId: number | null = null
     if (showEditForm.value && editingProduct.value) {
       await store.updateProduct(editingProduct.value.id, form.value)
+      productId = editingProduct.value.id
     } else {
-      // Check if product with same name and unit already exists
       const existingProduct = products.value.find(
         p => p.name.toLowerCase() === form.value.name.toLowerCase() && p.unit === form.value.unit
       )
-      
       if (existingProduct) {
-        // Add quantity to existing product
         const newQuantity = Number(existingProduct.quantity) + Number(form.value.quantity)
         await store.updateProduct(existingProduct.id, {
           ...existingProduct,
           quantity: newQuantity
         })
+        productId = existingProduct.id
       } else {
-        // Create new product with default price of 0
-        await store.createProduct({
-          ...form.value,
-          cop: 0
+        const created = await store.createProduct({ ...form.value, cop: 0 })
+        productId = created.id
+      }
+    }
+    // Save variants (skip rows already persisted and incomplete rows)
+    if (productId) {
+      for (const variant of form.value.variants) {
+        if ((variant as any).id) continue
+        if (!variant.size_range || !variant.color || !variant.quantity_dozens) continue
+        await productVariantStore.addVariant({
+          product: productId,
+          size_range: Number(variant.size_range),
+          color: Number(variant.color),
+          quantity_dozens: variant.quantity_dozens
         })
       }
     }
+    await store.fetchProducts()
     showAddForm.value = false
     showEditForm.value = false
     editingProduct.value = null
-    form.value = { name: '', unit: 'PCS' as 'M' | 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON', cop: 0, quantity: 0 }
+    form.value = { name: '', unit: 'PCS' as 'M' | 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON', cop: 0, quantity: 0, size_range: '', variants: [{ size_range: '', color: '', quantity_dozens: 0 }] }
   } catch (error: any) {
     let errorMessage = 'An error occurred.'
     if (error && error.response && error.response.data) {
@@ -302,8 +443,39 @@ function closeForm() {
     name: '',
     unit: 'PCS' as 'M' | 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON',
     cop: 0,
-    quantity: 0
+    quantity: 0,
+    size_range: '',
+    variants: [{ size_range: '', color: '', quantity_dozens: 0 }]
   }
+}
+
+function handleImportClose() {
+  showImportWizard.value = false
+  store.fetchProducts()
+}
+
+function handleBatchActionComplete(action: string, result: any) {
+  store.fetchProducts()
+  console.log(`Batch ${action} completed:`, result.message)
+}
+
+function getSizeRangeName(id: number) {
+  const sr = sizeRanges.value.find((s: any) => s.id === id)
+  return sr ? sr.name : id
+}
+function getColorName(id: number) {
+  const c = colors.value.find((c: any) => c.id === id)
+  return c ? c.name : id
+}
+function totalVariantDozens(product: any): number {
+  return (product.variants || []).reduce((sum: number, v: any) => sum + (v.quantity_dozens || 0), 0)
+}
+
+function addVariant() {
+  form.value.variants.push({ size_range: '', color: '', quantity_dozens: 0 })
+}
+function removeVariant(idx: number) {
+  form.value.variants.splice(idx, 1)
 }
 </script>
 
@@ -317,6 +489,11 @@ function closeForm() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .page-title {
@@ -378,6 +555,14 @@ function closeForm() {
 
 .filters-section {
   margin-bottom: 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  width: auto;
+  min-width: 160px;
 }
 
 .search-input {
@@ -413,6 +598,11 @@ function closeForm() {
 .products-table td {
   padding: 0.75rem;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
 }
 
 .table-row:hover {
@@ -573,4 +763,8 @@ function closeForm() {
 .btn-secondary:hover {
   background: #d1d5db;
 }
-</style> 
+
+.variant-list { margin-bottom: 1rem; }
+.btn-secondary { background: #e0e7ef; color: #222; }
+.btn-danger { background: #dc2626; color: #fff; }
+</style>

@@ -1,10 +1,34 @@
+
+export interface SizeRange {
+  id: number
+  name: string
+  created_at: string
+}
+
+export interface Color {
+  id: number
+  name: string
+  created_at: string
+}
+
+export interface ProductVariant {
+  id: number
+  product: number
+  size_range: number
+  color: number
+  quantity_dozens: number
+  created_at: string
+}
+
 export interface Product {
   id: number
   name: string
   unit: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
   cop: number
   quantity: number
-  available_stock: number
+  size_range: number | null
+  size_range_name?: string
+  variants: ProductVariant[]
   created_at: string
   last_updated: string
 }
