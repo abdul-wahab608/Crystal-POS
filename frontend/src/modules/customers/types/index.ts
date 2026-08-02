@@ -1,9 +1,10 @@
 export interface Customer {
   id: number
   name: string
-  email: string
   phone: string
   address: string
+  city?: string
+  customer_type: 'REGULAR' | 'WALK_IN'
   balance: number
   is_active: boolean
   created_at: string
@@ -11,16 +12,18 @@ export interface Customer {
 
 export interface CreateCustomerRequest {
   name: string
-  email: string
   phone: string
   address: string
+  city?: string
+  customer_type?: 'REGULAR' | 'WALK_IN'
   is_active: boolean
 }
 
 export interface UpdateCustomerRequest {
   name?: string
-  email?: string
   phone?: string
   address?: string
+  city?: string
+  customer_type?: 'REGULAR' | 'WALK_IN'
   is_active?: boolean
-} 
+}

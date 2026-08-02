@@ -7,16 +7,23 @@
         <input v-model="form.name" id="name" class="w-full border px-2 py-1 rounded" required />
       </div>
       <div class="mb-3">
-        <label for="email" class="block text-sm font-medium mb-1">Email</label>
-        <input v-model="form.email" id="email" type="email" class="w-full border px-2 py-1 rounded" required />
+        <label for="phone" class="block text-sm font-medium mb-1">Phone</label>
+        <input v-model="form.phone" id="phone" class="w-full border px-2 py-1 rounded" />
       </div>
       <div class="mb-3">
-        <label for="phone" class="block text-sm font-medium mb-1">Phone</label>
-        <input v-model="form.phone" id="phone" class="w-full border px-2 py-1 rounded" required />
+        <label for="city" class="block text-sm font-medium mb-1">City</label>
+        <input v-model="form.city" id="city" class="w-full border px-2 py-1 rounded" placeholder="e.g. Karachi" />
       </div>
       <div class="mb-3">
         <label for="address" class="block text-sm font-medium mb-1">Address</label>
-        <textarea v-model="form.address" id="address" class="w-full border px-2 py-1 rounded" rows="3"></textarea>
+        <textarea v-model="form.address" id="address" class="w-full border px-2 py-1 rounded" rows="2"></textarea>
+      </div>
+      <div class="mb-3">
+        <label for="customer_type" class="block text-sm font-medium mb-1">Customer Type</label>
+        <select v-model="form.customer_type" id="customer_type" class="w-full border px-2 py-1 rounded">
+          <option value="REGULAR">Regular</option>
+          <option value="WALK_IN">Walk-in</option>
+        </select>
       </div>
       <div class="mb-3">
         <label class="flex items-center">
@@ -33,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, defineProps, defineEmits } from 'vue'
+import { ref, watch } from 'vue'
 import type { Customer, CreateCustomerRequest } from '../types'
 
 interface Props {
@@ -45,9 +52,10 @@ const emit = defineEmits(['save', 'close'])
 
 const form = ref<CreateCustomerRequest>({
   name: '',
-  email: '',
   phone: '',
   address: '',
+  city: '',
+  customer_type: 'REGULAR',
   is_active: true
 })
 
@@ -55,17 +63,19 @@ watch(() => props.customer, (val) => {
   if (val) {
     form.value = {
       name: val.name,
-      email: val.email,
-      phone: val.phone,
-      address: val.address,
+      phone: val.phone || '',
+      address: val.address || '',
+      city: val.city || '',
+      customer_type: val.customer_type || 'REGULAR',
       is_active: val.is_active
     }
   } else {
     form.value = {
       name: '',
-      email: '',
       phone: '',
       address: '',
+      city: '',
+      customer_type: 'REGULAR',
       is_active: true
     }
   }
@@ -74,4 +84,4 @@ watch(() => props.customer, (val) => {
 function onSubmit() {
   emit('save', { ...form.value })
 }
-</script> 
+</script>

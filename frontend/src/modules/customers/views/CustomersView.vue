@@ -3,13 +3,29 @@
     <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Customers Management</h1>
-      <button @click="showAddForm = true" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Customer
-      </button>
+      <div class="header-actions">
+        <ExportButton entityType="customers" />
+        <button v-if="authStore.canImport" @click="showImportWizard = true" class="btn-secondary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+          </svg>
+          Import
+        </button>
+        <button @click="showAddForm = true" class="btn-primary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Customer
+        </button>
+      </div>
     </div>
+
+    <!-- Batch Actions Toolbar -->
+    <BatchActionsToolbar 
+      entityType="customers"
+      entityLabel="customer"
+      @action-complete="handleBatchActionComplete"
+    />
 
     <!-- Loading State -->
     <div v-if="store.loading" class="loading-state">
@@ -42,13 +58,17 @@
       </div>
 
       <!-- Search -->
-      <div class="filters-section">
+      <div class="filters-section flex gap-4 items-center">
         <input 
           v-model="searchTerm" 
           type="text" 
           placeholder="Search customers..." 
           class="search-input"
         />
+        <select v-model="selectedCity" class="search-input w-48">
+          <option value="">All Cities</option>
+          <option v-for="city in uniqueCities" :key="city" :value="city">{{ city }}</option>
+        </select>
       </div>
 
       <!-- Customers Table -->
@@ -56,20 +76,29 @@
         <table class="customers-table">
           <thead>
             <tr>
+              <th class="checkbox-col">
+                <SelectAllCheckbox 
+                  entityType="customers" 
+                  :allIds="filteredCustomers.map(c => c.id)" 
+                />
+              </th>
               <th>Name</th>
-              <th>Email</th>
               <th>Phone</th>
               <th>Address</th>
+              <th>City</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="customer in filteredCustomers" :key="customer.id" class="table-row">
+              <td class="checkbox-col">
+                <SelectableCheckbox entityType="customers" :id="customer.id" />
+              </td>
               <td>{{ customer.name }}</td>
-              <td>{{ customer.email }}</td>
               <td>{{ customer.phone }}</td>
               <td>{{ customer.address }}</td>
+              <td>{{ customer.city }}</td>
               <td>
                 <span :class="customer.is_active ? 'status-active' : 'status-inactive'">
                   {{ customer.is_active ? 'Active' : 'Inactive' }}
@@ -108,17 +137,6 @@
               id="name"
               v-model="form.name" 
               type="text" 
-              required 
-              class="form-input"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input 
-              id="email"
-              v-model="form.email" 
-              type="email" 
               required 
               class="form-input"
             />
@@ -164,23 +182,40 @@
         </form>
       </div>
     </div>
+
+    <!-- Import Wizard -->
+    <ImportWizard 
+      v-if="showImportWizard"
+      entityType="customers"
+      @close="handleImportClose"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useCustomersStore } from '../stores/customers'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { useBatchActionsStore } from '../../../shared/stores/batchActions'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
+import ExportButton from '../../../shared/components/ExportButton.vue'
+import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
+import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
+import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
 import type { Customer, CreateCustomerRequest } from '../types'
 
 const store = useCustomersStore()
+const authStore = useAuthStore()
+const batchStore = useBatchActionsStore()
 const searchTerm = ref('')
+const selectedCity = ref('')
 const showAddForm = ref(false)
 const showEditForm = ref(false)
+const showImportWizard = ref(false)
 const editingCustomer = ref<Customer | null>(null)
 
 const form = ref<CreateCustomerRequest>({
   name: '',
-  email: '',
   phone: '',
   address: '',
   is_active: true
@@ -193,11 +228,22 @@ onMounted(() => {
 const customers = computed(() => store.customers || [])
 
 const filteredCustomers = computed(() => {
-  if (!searchTerm.value) return customers.value
-  return customers.value.filter(customer => 
-    customer.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.value.toLowerCase())
-  )
+  let filtered = customers.value
+  if (searchTerm.value) {
+    filtered = filtered.filter(customer => 
+      customer.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+      customer.phone?.toLowerCase().includes(searchTerm.value.toLowerCase())
+    )
+  }
+  if (selectedCity.value) {
+    filtered = filtered.filter(customer => customer.city === selectedCity.value)
+  }
+  return filtered
+})
+
+const uniqueCities = computed(() => {
+  const cities = customers.value.map(c => c.city).filter(Boolean)
+  return Array.from(new Set(cities))
 })
 
 const activeCustomers = computed(() => 
@@ -246,11 +292,23 @@ function closeForm() {
   editingCustomer.value = null
   form.value = {
     name: '',
-    email: '',
     phone: '',
     address: '',
     is_active: true
   }
+}
+
+function handleImportClose() {
+  showImportWizard.value = false
+  // Refresh customer list after import
+  store.fetchCustomers()
+}
+
+function handleBatchActionComplete(action: string, result: any) {
+  // Refresh customer list after batch action
+  store.fetchCustomers()
+  // Show feedback to user (you can add toast notification here)
+  console.log(`Batch ${action} completed:`, result.message)
 }
 </script>
 
@@ -264,6 +322,11 @@ function closeForm() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .page-title {
@@ -360,6 +423,11 @@ function closeForm() {
 .customers-table td {
   padding: 0.75rem;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
 }
 
 .table-row:hover {

@@ -3,8 +3,9 @@
     <thead>
       <tr>
         <th class="py-2 px-4 border-b">Name</th>
-        <th class="py-2 px-4 border-b">Email</th>
         <th class="py-2 px-4 border-b">Phone</th>
+        <th class="py-2 px-4 border-b">City</th>
+        <th class="py-2 px-4 border-b">Type</th>
         <th class="py-2 px-4 border-b">Balance</th>
         <th class="py-2 px-4 border-b">Actions</th>
       </tr>
@@ -12,8 +13,13 @@
     <tbody>
       <tr v-for="customer in customers" :key="customer.id">
         <td class="py-2 px-4 border-b">{{ customer.name }}</td>
-        <td class="py-2 px-4 border-b">{{ customer.email }}</td>
-        <td class="py-2 px-4 border-b">{{ customer.phone }}</td>
+        <td class="py-2 px-4 border-b">{{ customer.phone || '-' }}</td>
+        <td class="py-2 px-4 border-b">{{ customer.city || '-' }}</td>
+        <td class="py-2 px-4 border-b">
+          <span :class="customer.customer_type === 'WALK_IN' ? 'text-orange-600' : 'text-green-600'">
+            {{ customer.customer_type === 'WALK_IN' ? 'Walk-in' : 'Regular' }}
+          </span>
+        </td>
         <td class="py-2 px-4 border-b">{{ customer.balance }}</td>
         <td class="py-2 px-4 border-b">
           <button @click="$emit('edit', customer)" class="text-blue-600 mr-2">Edit</button>
@@ -26,4 +32,4 @@
 <script setup lang="ts">
 defineProps<{ customers: any[] }>()
 defineEmits(['edit', 'delete'])
-</script> 
+</script>
