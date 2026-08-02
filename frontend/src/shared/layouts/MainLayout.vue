@@ -10,7 +10,7 @@
             </div>
             <div class="nav-links">
               <router-link
-                v-for="item in navigationItems"
+                v-for="item in filteredNavigationItems"
                 :key="item.name"
                 :to="item.href"
                 :class="['nav-link', $route.path === item.href ? 'active' : '']"
@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import LoginForm from '../components/LoginForm.vue'
 
@@ -70,7 +70,18 @@ const navigationItems = [
   { name: 'Reports', href: '/reports', permission: null },
   { name: 'Assets', href: '/assets', permission: null },
   { name: 'Users', href: '/users', permission: null },
+  { name: 'Import History', href: '/import-history', permission: 'superuser' },
 ]
+
+const filteredNavigationItems = computed(() => {
+  return navigationItems.filter(item => {
+    if (item.permission === null) return true
+    if (item.permission === 'superuser') {
+      return authStore.user?.is_superuser === true
+    }
+    return true
+  })
+})
 
 const handleLoginSuccess = () => {
   showLoginForm.value = false

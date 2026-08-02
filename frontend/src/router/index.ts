@@ -14,6 +14,7 @@ const UsersView = () => import('../modules/users/views/UsersView.vue')
 const RawMaterialsView = () => import('../modules/raw_materials/views/RawMaterialsView.vue')
 const DashboardView = () => import('../views/HomeView.vue')
 const LoginView = () => import('../views/LoginView.vue')
+const ImportHistoryView = () => import('../views/ImportHistoryView.vue')
 
 // Use hash history for Electron (file:// protocol), web history for browser
 const isElectron = navigator.userAgent.toLowerCase().indexOf('electron') > -1
@@ -40,6 +41,7 @@ const router = createRouter({
         { path: 'reports', name: 'reports', component: ReportsView },
         { path: 'users', name: 'users', component: UsersView },
         { path: 'raw-materials', name: 'raw-materials', component: RawMaterialsView },
+        { path: 'import-history', name: 'import-history', component: ImportHistoryView },
       ],
     },
   ],

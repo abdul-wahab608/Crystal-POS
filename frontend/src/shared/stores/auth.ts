@@ -6,6 +6,7 @@ interface User {
   username: string
   email: string
   role: 'ADMIN' | 'MANAGER' | 'CASHIER' | 'STAFF'
+  is_superuser?: boolean
 }
 
 interface LoginRequest {
@@ -24,6 +25,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => !!state.token && !!state.user,
     isAdmin: (state) => state.user?.role === 'ADMIN',
+    isSuperuser: (state) => state.user?.is_superuser === true,
     isManager: (state) => ['ADMIN', 'MANAGER'].includes(state.user?.role || ''),
     isCashier: (state) => ['ADMIN', 'MANAGER', 'CASHIER'].includes(state.user?.role || ''),
     canManageUsers: (state) => ['ADMIN'].includes(state.user?.role || ''),
@@ -35,6 +37,7 @@ export const useAuthStore = defineStore('auth', {
     canManagePayments: (state) => ['ADMIN', 'MANAGER', 'CASHIER'].includes(state.user?.role || ''),
     canViewReports: (state) => ['ADMIN', 'MANAGER'].includes(state.user?.role || ''),
     canManageAssets: (state) => ['ADMIN', 'MANAGER'].includes(state.user?.role || ''),
+    canImport: (state) => state.user?.is_superuser === true,
   },
 
   actions: {
