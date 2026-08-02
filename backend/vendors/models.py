@@ -5,9 +5,9 @@ from django.core.validators import MinValueValidator
 
 class Vendor(models.Model):
     name = models.CharField(max_length=255, unique=True)
-    email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
+    city = models.CharField(max_length=255, blank=True, null=True)
     contact_person = models.CharField(max_length=255, blank=True, null=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
