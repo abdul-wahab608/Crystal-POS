@@ -3,13 +3,31 @@
     <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Assets Management</h1>
-      <button @click="showAddForm = true" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Asset
-      </button>
+      <div class="header-actions">
+        <ExportButton entityType="assets" />
+        <button v-if="authStore.canImport" @click="showImportWizard = true" class="btn-secondary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+          </svg>
+          Import
+        </button>
+        <button @click="showAddForm = true" class="btn-primary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Asset
+        </button>
+      </div>
     </div>
+
+    <!-- Batch Actions Toolbar -->
+    <BatchActionsToolbar 
+      entityType="assets"
+      entityLabel="asset"
+      :showActivate="false"
+      :showDeactivate="false"
+      @action-complete="handleBatchActionComplete"
+    />
 
     <!-- Loading State -->
     <div v-if="store.loading" class="loading-state">
@@ -60,6 +78,12 @@
         <table class="assets-table">
           <thead>
             <tr>
+              <th class="checkbox-col">
+                <SelectAllCheckbox 
+                  entityType="assets" 
+                  :allIds="filteredAssets.map(a => a.id)" 
+                />
+              </th>
               <th>Asset Name</th>
               <th>Category</th>
               <th>Purchase Value</th>
@@ -71,6 +95,9 @@
           </thead>
           <tbody>
             <tr v-for="asset in filteredAssets" :key="asset.id" class="table-row">
+              <td class="checkbox-col">
+                <SelectableCheckbox entityType="assets" :id="asset.id" />
+              </td>
               <td>
                 <div class="asset-info">
                   <div class="asset-icon">
@@ -225,18 +252,35 @@
         </form>
       </div>
     </div>
+
+    <!-- Import Wizard -->
+    <ImportWizard 
+      v-if="showImportWizard"
+      entityType="assets"
+      @close="handleImportClose"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAssetsStore } from '../stores/assets'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { useBatchActionsStore } from '../../../shared/stores/batchActions'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
+import ExportButton from '../../../shared/components/ExportButton.vue'
+import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
+import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
+import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
 import type { Asset, CreateAssetRequest } from '../types'
 
 const store = useAssetsStore()
+const authStore = useAuthStore()
+const batchStore = useBatchActionsStore()
 const searchTerm = ref('')
 const showAddForm = ref(false)
 const showEditForm = ref(false)
+const showImportWizard = ref(false)
 const editingAsset = ref<Asset | null>(null)
 
 const form = ref<CreateAssetRequest>({
@@ -344,6 +388,16 @@ function getStatusClass(status: string) {
       return 'status-default'
   }
 }
+
+function handleImportClose() {
+  showImportWizard.value = false
+  store.fetchAssets()
+}
+
+function handleBatchActionComplete(action: string, result: any) {
+  store.fetchAssets()
+  console.log(`Batch ${action} completed:`, result.message)
+}
 </script>
 
 <style scoped>
@@ -356,6 +410,11 @@ function getStatusClass(status: string) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .page-title {
@@ -452,6 +511,11 @@ function getStatusClass(status: string) {
 .assets-table td {
   padding: 0.75rem;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
 }
 
 .table-row:hover {
