@@ -1,8 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Sale, SaleItem
+from .models import Sale
 from customers.models import CustomerTransaction
-from products.models import ProductHistory
 
 @receiver(post_save, sender=Sale)
 def create_customer_transaction_on_sale(sender, instance, created, **kwargs):
@@ -13,23 +12,11 @@ def create_customer_transaction_on_sale(sender, instance, created, **kwargs):
             type=CustomerTransaction.SALE,
             amount=instance.total_amount,
             reference=f"Sale #{instance.id}",
-            notes=f"Sale receipt: {instance.receipt_number}"
+            # instance.bill_no isn't assigned yet at post_save time (Sale.save() sets it via a
+            # follow-up .update() after the initial insert) — derive it the same way the model does.
+            notes=f"Sale receipt: BILL-{instance.pk:04d}"
         )
 
-@receiver(post_save, sender=SaleItem)
-def update_product_stock_on_sale(sender, instance, created, **kwargs):
-    """Update product stock when a sale item is created"""
-    if created:
-        product = instance.product
-        # Reduce stock
-        product.quantity -= instance.quantity
-        product.save()
-        
-        # Create product history record
-        ProductHistory.objects.create(
-            product=product,
-            change_type=ProductHistory.SALE,
-            quantity_change=-instance.quantity,  # Negative for reduction
-            reference=f"Sale #{instance.sale.id}",
-            notes=f"Sale to {instance.sale.customer.name}"
-        ) 
+# Stock deduction for sale items is handled directly in SaleSerializer.create(),
+# which is variant-aware (adjusts ProductVariant.quantity_dozens and Product.quantity).
+# A duplicate post_save(SaleItem) signal here would double-deduct stock. 
