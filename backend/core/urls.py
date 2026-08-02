@@ -18,8 +18,14 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.http import FileResponse, Http404
-from .views import health_check
+from rest_framework.routers import DefaultRouter
+from .views import health_check, UnitViewSet, ImportSessionViewSet
 import os
+
+# Create router for core API endpoints
+router = DefaultRouter()
+router.register(r'units', UnitViewSet, basename='unit')
+router.register(r'import-sessions', ImportSessionViewSet, basename='import-session')
 
 
 def serve_vue_app(request):
@@ -93,6 +99,8 @@ def serve_static_file(request, path):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/health/', health_check, name='health_check'),
+    # Core API endpoints (units, import-sessions)
+    path('api/', include(router.urls)),
     # API endpoints - fixed to match frontend expectations
     path('api/users/', include('users.urls')),
     path('api/customers/', include('customers.urls')),
@@ -105,6 +113,8 @@ urlpatterns = [
     path('api/reports/', include('reports.urls')),
     path('api/raw-materials/', include('raw_materials.urls')),
     path('api/bank-accounts/', include('bank_accounts.urls')),
+    # Billing & Invoicing API endpoints
+    path('api/billing/', include('core.urls_billing')),
 ]
 
 # Serve Vue frontend in production (when dist folder exists)
