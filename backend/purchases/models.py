@@ -15,12 +15,14 @@ class Purchase(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='purchases')
     date = models.DateTimeField(auto_now_add=True)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default=UNPAID)
     created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True)
-    invoice_number = models.CharField(max_length=100, unique=True)
+    # Linked bill (optional, enforced at business logic level)
+    # Only one of invoice or bill should be set for each sale/purchase
+    # See core.models_billing.Bill
 
     def __str__(self):
         return f"Purchase #{self.id} - {self.vendor.name}"
+    # No legacy invoice logic; handled by Bill model
 
 class PurchaseItem(models.Model):
     purchase = models.ForeignKey(Purchase, on_delete=models.CASCADE, related_name='items')
