@@ -3,13 +3,29 @@
     <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Vendors Management</h1>
-      <button @click="showAddForm = true" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Vendor
-      </button>
+      <div class="header-actions">
+        <ExportButton entityType="vendors" />
+        <button v-if="authStore.canImport" @click="showImportWizard = true" class="btn-secondary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+          </svg>
+          Import
+        </button>
+        <button @click="showAddForm = true" class="btn-primary">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Vendor
+        </button>
+      </div>
     </div>
+
+    <!-- Batch Actions Toolbar -->
+    <BatchActionsToolbar 
+      entityType="vendors"
+      entityLabel="vendor"
+      @action-complete="handleBatchActionComplete"
+    />
 
     <!-- Loading State -->
     <div v-if="store.loading" class="loading-state">
@@ -56,6 +72,12 @@
         <table class="vendors-table">
           <thead>
             <tr>
+              <th class="checkbox-col">
+                <SelectAllCheckbox 
+                  entityType="vendors" 
+                  :allIds="filteredVendors.map(v => v.id)" 
+                />
+              </th>
               <th>Name</th>
               <th>Contact Person</th>
               <th>Email</th>
@@ -67,6 +89,9 @@
           </thead>
           <tbody>
             <tr v-for="vendor in filteredVendors" :key="vendor.id" class="table-row">
+              <td class="checkbox-col">
+                <SelectableCheckbox entityType="vendors" :id="vendor.id" />
+              </td>
               <td>{{ vendor.name }}</td>
               <td>{{ vendor.contact_person }}</td>
               <td>{{ vendor.email }}</td>
@@ -102,19 +127,36 @@
       @save="handleSave"
       @close="closeForm"
     />
+
+    <!-- Import Wizard -->
+    <ImportWizard 
+      v-if="showImportWizard"
+      entityType="vendors"
+      @close="handleImportClose"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useVendorsStore } from '../stores/vendors'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { useBatchActionsStore } from '../../../shared/stores/batchActions'
 import type { Vendor } from '../types'
 import VendorForm from '../components/VendorForm.vue'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
+import ExportButton from '../../../shared/components/ExportButton.vue'
+import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
+import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
+import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
 
 const store = useVendorsStore()
+const authStore = useAuthStore()
+const batchStore = useBatchActionsStore()
 const searchTerm = ref('')
 const showAddForm = ref(false)
 const showEditForm = ref(false)
+const showImportWizard = ref(false)
 const editingVendor = ref<Vendor | null>(null)
 const errorMessage = ref('')
 
@@ -181,6 +223,16 @@ function closeForm() {
   editingVendor.value = null
   errorMessage.value = ''
 }
+
+function handleImportClose() {
+  showImportWizard.value = false
+  store.fetchVendors()
+}
+
+function handleBatchActionComplete(action: string, result: any) {
+  store.fetchVendors()
+  console.log(`Batch ${action} completed:`, result.message)
+}
 </script>
 
 <style scoped>
@@ -193,6 +245,11 @@ function closeForm() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .page-title {
@@ -289,6 +346,11 @@ function closeForm() {
 .vendors-table td {
   padding: 0.75rem;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
 }
 
 .table-row:hover {

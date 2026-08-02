@@ -38,16 +38,12 @@
               </div>
               
               <div class="form-group">
-                <label for="email" class="form-label">
-                  Email <span class="required">*</span>
-                </label>
-                <input 
-                  v-model="form.email" 
-                  id="email" 
-                  type="email" 
+                <label for="city" class="form-label">City</label>
+                <input
+                  v-model="form.city"
+                  id="city"
                   class="form-input"
-                  placeholder="vendor@example.com"
-                  required 
+                  placeholder="e.g. Lahore"
                 />
               </div>
               
@@ -129,9 +125,9 @@ const emit = defineEmits(['save', 'close'])
 
 const form = ref<CreateVendorRequest>({
   name: '',
-  email: '',
   phone: '',
   address: '',
+  city: '',
   contact_person: '',
   is_active: true
 })
@@ -140,18 +136,18 @@ watch(() => props.vendor, (val) => {
   if (val) {
     form.value = {
       name: val.name,
-      email: val.email,
-      phone: val.phone,
-      address: val.address,
-      contact_person: val.contact_person,
+      phone: val.phone || '',
+      address: val.address || '',
+      city: val.city || '',
+      contact_person: val.contact_person || '',
       is_active: val.is_active
     }
   } else {
     form.value = {
       name: '',
-      email: '',
       phone: '',
       address: '',
+      city: '',
       contact_person: '',
       is_active: true
     }

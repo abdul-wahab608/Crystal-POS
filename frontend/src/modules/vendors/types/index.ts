@@ -22,10 +22,11 @@ export interface VendorProduct {
 export interface Vendor {
   id: number
   name: string
-  email: string
   phone: string
   address: string
+  city?: string
   contact_person: string
+  balance: number
   is_active: boolean
   vendor_products?: VendorProduct[]
   total_products_count?: number
@@ -35,9 +36,9 @@ export interface Vendor {
 
 export interface CreateVendorRequest {
   name: string
-  email: string
   phone: string
   address: string
+  city?: string
   contact_person: string
   is_active: boolean
   vendor_products?: any[]
@@ -49,4 +50,4 @@ export interface VendorStats {
   total: number
   active: number
   inactive: number
-} 
+}
