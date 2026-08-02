@@ -2,12 +2,19 @@ from django.db import models
 
 # Create your models here.
 
+
 class Customer(models.Model):
+    REGULAR = 'REGULAR'
+    WALK_IN = 'WALK_IN'
+    CUSTOMER_TYPE_CHOICES = [
+        (REGULAR, 'Regular'),
+        (WALK_IN, 'Walk-in'),
+    ]
     name = models.CharField(max_length=255)
-    email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
+    customer_type = models.CharField(max_length=20, choices=CUSTOMER_TYPE_CHOICES, default=REGULAR)
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
