@@ -17,8 +17,10 @@ def create_sale_payment(sender, instance, created, **kwargs):
             sale=instance,
             original_amount=instance.total_amount,
             remaining_amount=instance.total_amount,
-            reference=f"Sale #{instance.receipt_number}",
-            notes=f"Auto-generated payment for sale {instance.receipt_number}"
+            # instance.bill_no isn't assigned yet at post_save time (Sale.save() sets it via a
+            # follow-up .update() after the initial insert) — derive it the same way the model does.
+            reference=f"Sale #BILL-{instance.pk:04d}",
+            notes=f"Auto-generated payment for sale BILL-{instance.pk:04d}"
         )
 
 @receiver(post_save, sender=RawMaterialPurchase)
