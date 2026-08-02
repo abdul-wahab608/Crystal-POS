@@ -3,10 +3,26 @@
     <div class="page-header">
       <h1 class="page-title">Raw Materials</h1>
       <div class="header-actions">
+        <ExportButton entityType="raw_materials" />
+        <button v-if="authStore.canImport" class="btn-import" @click="showImportWizard = true">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+          </svg>
+          Import
+        </button>
         <button class="btn-primary" @click="handleAddClick">Add Material</button>
         <button class="btn-secondary" @click="showPurchaseForm">Add Purchase</button>
       </div>
     </div>
+
+    <!-- Batch Actions Toolbar -->
+    <BatchActionsToolbar 
+      entityType="raw_materials"
+      entityLabel="raw material"
+      :showActivate="false"
+      :showDeactivate="false"
+      @action-complete="handleBatchActionComplete"
+    />
 
     <!-- Material Summary Cards -->
     <div v-if="materialSummary.length > 0" class="summary-section">
@@ -71,23 +87,38 @@
       :material="selectedMaterial!"
       @close="closeModals"
     />
+
+    <!-- Import Wizard -->
+    <ImportWizard 
+      v-if="showImportWizard"
+      entityType="raw_materials"
+      @close="handleImportClose"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRawMaterialsStore } from '../stores/raw_materials'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { useBatchActionsStore } from '../../../shared/stores/batchActions'
 import RawMaterialTable from '../components/RawMaterialTable.vue'
 import RawMaterialForm from '../components/RawMaterialForm.vue'
 import RawMaterialUsageForm from '../components/RawMaterialUsageForm.vue'
 import RawMaterialPurchaseForm from '../components/RawMaterialPurchaseForm.vue'
 import RawMaterialHistoryModal from '../components/RawMaterialHistoryModal.vue'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
+import ExportButton from '../../../shared/components/ExportButton.vue'
+import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
 import type { RawMaterial } from '../types'
 
 const store = useRawMaterialsStore()
+const authStore = useAuthStore()
+const batchStore = useBatchActionsStore()
 
 // Modal states
 const showAddForm = ref(false)
+const showImportWizard = ref(false)
 const editingMaterial = ref<RawMaterial | undefined>(undefined)
 const showUsageModal = ref(false)
 const showPurchaseModal = ref(false)
@@ -181,6 +212,16 @@ function onPurchaseSuccess() {
   refresh()
 }
 
+function handleImportClose() {
+  showImportWizard.value = false
+  refresh()
+}
+
+function handleBatchActionComplete(action: string, result: any) {
+  refresh()
+  console.log(`Batch ${action} completed:`, result.message)
+}
+
 onMounted(() => {
   refresh()
 })
@@ -227,6 +268,22 @@ onMounted(() => {
   font-weight: 500;
   cursor: pointer;
   margin-left: 0.5rem;
+}
+
+.btn-import {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-import:hover {
+  background: #d1d5db;
 }
 
 .btn-secondary:hover {

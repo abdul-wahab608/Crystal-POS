@@ -9,6 +9,12 @@
       <table class="materials-table">
         <thead>
           <tr>
+            <th class="checkbox-col">
+              <SelectAllCheckbox 
+                entityType="raw_materials" 
+                :allIds="materials.map(m => m.id)" 
+              />
+            </th>
             <th>Name</th>
             <th>Unit</th>
             <th>Unit Price</th>
@@ -21,6 +27,9 @@
         </thead>
         <tbody>
           <tr v-for="mat in materials" :key="mat.id" class="table-row">
+            <td class="checkbox-col">
+              <SelectableCheckbox entityType="raw_materials" :id="mat.id" />
+            </td>
             <td>{{ mat.name }}</td>
             <td>{{ mat.unit }}</td>
             <td>{{ mat.unit_price ? Number(mat.unit_price).toFixed(2) : '0.00' }}</td>
@@ -67,6 +76,8 @@
 
 <script setup lang="ts">
 import type { RawMaterial } from '../types'
+import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
+import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
 
 const props = defineProps<{ 
   materials: RawMaterial[]
@@ -132,6 +143,11 @@ function getStatusClass(needsReorder: boolean) {
   background: #f9fafb;
   font-weight: 600;
   color: #374151;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
 }
 
 .table-row:hover {
