@@ -43,7 +43,8 @@ def login_view(request):
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
-                'role': user.role
+                'role': user.role,
+                'is_superuser': user.is_superuser
             }
         })
     else:
@@ -60,7 +61,8 @@ def current_user_view(request):
         'id': user.id,
         'username': user.username,
         'email': user.email,
-        'role': user.role
+        'role': user.role,
+        'is_superuser': user.is_superuser
     })
 
 @api_view(['POST'])
