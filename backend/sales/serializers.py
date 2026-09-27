@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Sale, SaleItem
 from products.models import Product, ProductVariant, SizeRange, Color
@@ -48,7 +49,7 @@ class SaleSerializer(serializers.ModelSerializer):
             size_range_id = item_data.get('size_range_id')
             color_id = item_data.get('color_id')
             quantity_dozens = int(item_data.get('quantity_dozens', item_data.get('quantity', 0)))
-            unit_price = item_data.get('unit_price', 0)
+            unit_price = Decimal(str(item_data.get('unit_price', 0)))
 
             if not color_id:
                 raise serializers.ValidationError(
