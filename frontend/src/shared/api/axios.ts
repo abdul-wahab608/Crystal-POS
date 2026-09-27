@@ -1,5 +1,4 @@
 import axios from 'axios'
-import offlineManager from '../utils/offlineManager'
 import indexedDBManager from '../utils/indexedDBManager'
 
 // Detect if running in Electron or browser
@@ -52,52 +51,6 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    // Handle offline mode
-    if (!offlineManager.checkOnlineStatus()) {
-      // Check if we have cached data for GET requests
-      if (config.method?.toLowerCase() === 'get') {
-        const cacheKey = `${config.method}_${config.url}`;
-        const cachedData = await indexedDBManager.getCachedResponse(cacheKey);
-        
-        if (cachedData) {
-          console.log('📦 Using cached data for:', config.url);
-          // Return cached data as a fulfilled promise
-          return Promise.reject({
-            config,
-            response: {
-              data: cachedData,
-              status: 200,
-              statusText: 'OK (Cached)',
-              headers: {},
-              config
-            },
-            isCached: true
-          });
-        }
-      }
-
-      // For POST/PUT/DELETE, add to sync queue
-      if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase() || '')) {
-        offlineManager.addToSyncQueue({
-          method: config.method,
-          url: config.baseURL + config.url,
-          data: config.data
-        });
-
-        return Promise.reject({
-          message: 'Request queued for sync when online',
-          isOffline: true,
-          config
-        });
-      }
-
-      return Promise.reject({
-        message: 'No internet connection',
-        isOffline: true,
-        config
-      });
-    }
-
     return config
   },
   (error) => {
@@ -117,17 +70,6 @@ api.interceptors.response.use(
     return response
   },
   (error) => {
-    // Handle cached response
-    if (error.isCached) {
-      return Promise.resolve(error.response);
-    }
-
-    // Handle offline mode
-    if (error.isOffline) {
-      console.warn('⚠️ Offline:', error.message);
-      return Promise.reject(error);
-    }
-
     if (error.response?.status === 401) {
       // Handle unauthorized access
       localStorage.removeItem('auth_token')
