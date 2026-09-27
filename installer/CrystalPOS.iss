@@ -56,6 +56,7 @@ Source: "{#ProjectRoot}\backend\assets\*"; DestDir: "{app}\backend\assets"; Flag
 Source: "{#ProjectRoot}\backend\payments\*"; DestDir: "{app}\backend\payments"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc"
 Source: "{#ProjectRoot}\backend\reports\*"; DestDir: "{app}\backend\reports"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc"
 Source: "{#ProjectRoot}\backend\bank_accounts\*"; DestDir: "{app}\backend\bank_accounts"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc"
+Source: "{#ProjectRoot}\backend\profit\*"; DestDir: "{app}\backend\profit"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc"
 Source: "{#ProjectRoot}\backend\manage.py"; DestDir: "{app}\backend"; Flags: ignoreversion
 Source: "{#ProjectRoot}\backend\requirements.txt"; DestDir: "{app}\backend"; Flags: ignoreversion
 
