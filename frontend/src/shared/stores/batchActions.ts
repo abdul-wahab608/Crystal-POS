@@ -110,13 +110,13 @@ export const useBatchActionsStore = defineStore('batchActions', {
      */
     _getEndpoint(entityType: string): string {
       const endpointMap: Record<string, string> = {
-        customers: '/api/customers',
-        vendors: '/api/vendors',
-        products: '/api/products',
-        raw_materials: '/api/raw-materials',
-        assets: '/api/assets',
+        customers: '/customers',
+        vendors: '/vendors',
+        products: '/products',
+        raw_materials: '/raw-materials/materials',
+        assets: '/assets',
       }
-      return endpointMap[entityType] || `/api/${entityType}`
+      return endpointMap[entityType] || `/${entityType}`
     },
 
     /**

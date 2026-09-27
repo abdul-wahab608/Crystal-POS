@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'payments',
     'reports',
     'bank_accounts',
+    'profit',
     'django_filters',
 ]
 

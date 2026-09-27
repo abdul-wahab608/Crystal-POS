@@ -211,11 +211,11 @@ const loading = ref(false)
 const error = ref('')
 
 const endpointMap: Record<string, string> = {
-  customer:  '/api/reports/customer-report/',
-  area:      '/api/reports/area-report/',
-  article:   '/api/reports/article-report/',
-  summary:   '/api/reports/sales-report/',
-  inventory: '/api/reports/inventory-report/',
+  customer:  '/reports/customer-report/',
+  area:      '/reports/area-report/',
+  article:   '/reports/article-report/',
+  summary:   '/reports/sales-report/',
+  inventory: '/reports/inventory-report/',
 }
 
 async function loadTab(tab: string) {

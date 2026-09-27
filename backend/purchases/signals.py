@@ -13,7 +13,7 @@ def create_vendor_transaction_on_purchase(sender, instance, created, **kwargs):
             type=VendorTransaction.PURCHASE,
             amount=instance.total_amount,
             reference=f"Purchase #{instance.id}",
-            notes=f"Purchase invoice: {instance.invoice_number}"
+            notes=f"Purchase #{instance.id} from {instance.vendor.name}"
         )
 
 @receiver(post_save, sender=PurchaseItem)

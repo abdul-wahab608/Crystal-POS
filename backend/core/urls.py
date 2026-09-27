@@ -113,6 +113,7 @@ urlpatterns = [
     path('api/reports/', include('reports.urls')),
     path('api/raw-materials/', include('raw_materials.urls')),
     path('api/bank-accounts/', include('bank_accounts.urls')),
+    path('api/profit/', include('profit.urls')),
     # Billing & Invoicing API endpoints
     path('api/billing/', include('core.urls_billing')),
 ]

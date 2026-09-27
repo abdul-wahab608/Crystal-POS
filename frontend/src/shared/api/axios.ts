@@ -8,11 +8,11 @@ const isElectron = !!(window as any).electronAPI
 // Get base URL - synchronously in Electron to avoid race conditions
 const getBaseURL = (): string => {
   if (isElectron) {
-    // In Electron, backend port is always 8000 (default in config)
+    // In Electron, backend port is always 8010 (default in config)
     // We'll update this after config loads, but start with default
-    return 'http://127.0.0.1:8000/api'
+    return 'http://127.0.0.1:8010/api'
   }
-  return 'http://localhost:8000/api'
+  return 'http://localhost:8010/api'
 }
 
 // Initialize base URL
@@ -27,7 +27,7 @@ if (isElectron) {
       api.defaults.baseURL = baseURL
       console.log('API Base URL updated:', baseURL)
     } catch (error) {
-      console.error('Failed to get config from Electron, using default port 8000:', error)
+      console.error('Failed to get config from Electron, using default port 8010:', error)
     }
   })()
 }

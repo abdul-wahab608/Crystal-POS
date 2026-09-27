@@ -157,71 +157,6 @@ function Show-SuccessDialog {
     }
 }
 
-function Test-Command {
-    param([string]$Command)
-    try {
-        $null = Get-Command $Command -ErrorAction Stop
-        return $true
-    } catch {
-        return $false
-    }
-}
-
-function Get-PythonPath {
-    Write-Log "Searching for Python installation..." "DEBUG"
-    
-    # Check for bundled Python first
-    $BundledPython = Join-Path $InstallDir "python\python.exe"
-    if (Test-Path $BundledPython) {
-        Write-Log "Found bundled Python at: $BundledPython" "DEBUG"
-        return $BundledPython
-    }
-    
-    # Check system Python
-    if (Test-Command "python") {
-        try {
-            $pythonExe = (Get-Command python -ErrorAction Stop).Source
-            Write-Log "Found system Python at: $pythonExe" "DEBUG"
-            return $pythonExe
-        } catch {
-            Write-Log "Failed to get python path: $_" "DEBUG"
-        }
-    }
-    
-    if (Test-Command "python3") {
-        try {
-            $pythonExe = (Get-Command python3 -ErrorAction Stop).Source
-            Write-Log "Found python3 at: $pythonExe" "DEBUG"
-            return $pythonExe
-        } catch {
-            Write-Log "Failed to get python3 path: $_" "DEBUG"
-        }
-    }
-    
-    # Check common install locations
-    $CommonPaths = @(
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
-        "C:\Python313\python.exe",
-        "C:\Python312\python.exe",
-        "C:\Python311\python.exe",
-        "C:\Python310\python.exe"
-    )
-    
-    foreach ($Path in $CommonPaths) {
-        Write-Log "Checking: $Path" "DEBUG"
-        if (Test-Path $Path) {
-            Write-Log "Found Python at: $Path" "DEBUG"
-            return $Path
-        }
-    }
-    
-    Write-Log "Python not found in any known location" "DEBUG"
-    return $null
-}
-
 function Invoke-StepWithErrorHandling {
     param(
         [string]$StepName,
@@ -260,139 +195,52 @@ Write-Log "User: $env:USERNAME"
 Write-Log "=========================================================="
 
 # ============================================================================
-# STEP 1: CHECK PYTHON INSTALLATION
+# STEP 1: VERIFY BUNDLED PYTHON RUNTIME
 # ============================================================================
-Write-StepHeader "1" "Checking Python Installation"
+# Python + every backend dependency ships pre-installed inside the installer
+# (see installer/build-python-runtime.ps1) - there is no system Python lookup,
+# no venv creation, and no pip/PyPI access here. Setup is fully offline.
+Write-StepHeader "1" "Verifying Bundled Python Runtime"
 
-$PythonPath = $null
-$StepSuccess = Invoke-StepWithErrorHandling -StepName "Check Python" -Action {
-    $Script:PythonPath = Get-PythonPath
-    
-    if ($null -eq $Script:PythonPath) {
-        throw "Python not found. Please install Python 3.10 or later from https://www.python.org/downloads/"
-    }
-    
-    # Verify Python works
-    $PythonVersion = & $Script:PythonPath --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Python found but failed to execute: $PythonVersion"
-    }
-    
-    Write-Log "Python found: $PythonVersion" "SUCCESS"
-    Write-Log "Python path: $Script:PythonPath"
-}
+$VenvPython = Join-Path $InstallDir "python\python.exe"
 
-$PythonPath = $Script:PythonPath
+# Without this, the bundled interpreter's "user site-packages" path
+# (%APPDATA%\Python\PythonXY\site-packages) is still on sys.path and takes
+# priority over the runtime's own bundled packages whenever a Python of the
+# same version happens to have anything installed there - silently reading
+# the wrong package versions instead of the ones shipped in the installer.
+$env:PYTHONNOUSERSITE = "1"
 
-if (!$StepSuccess) {
-    Show-ErrorDialog -Title "Crystal POS Setup Failed" `
-        -Message "Python is not installed or not working properly." `
-        -Details $Script:LastError
-    exit 1
-}
-
-# ============================================================================
-# STEP 2: CREATE VIRTUAL ENVIRONMENT
-# ============================================================================
-Write-StepHeader "2" "Creating Virtual Environment"
-
-$VenvPath = Join-Path $InstallDir "venv"
-$VenvPython = Join-Path $VenvPath "Scripts\python.exe"
-$VenvPip = Join-Path $VenvPath "Scripts\pip.exe"
-
-$StepSuccess = Invoke-StepWithErrorHandling -StepName "Create Virtual Environment" -Action {
-    if (!(Test-Path $VenvPath)) {
-        Write-Log "Creating new virtual environment..."
-        # Quote paths to handle spaces in 'Program Files'
-        $output = & "$PythonPath" -m venv "$VenvPath" 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create virtual environment: $output"
-        }
-        Write-Log "Virtual environment created at: $VenvPath" "SUCCESS"
-    } else {
-        Write-Log "Virtual environment already exists at: $VenvPath"
-    }
-    
-    # Verify venv Python exists
+$StepSuccess = Invoke-StepWithErrorHandling -StepName "Verify Bundled Runtime" -Action {
     if (!(Test-Path $VenvPython)) {
-        throw "Virtual environment created but python.exe not found at: $VenvPython"
+        throw "Bundled Python runtime not found at: $VenvPython. The installer package appears to be incomplete or corrupted."
     }
-    Write-Log "Venv Python verified: $VenvPython" "SUCCESS"
+
+    $PythonVersion = & "$VenvPython" --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled Python found but failed to execute: $PythonVersion"
+    }
+    Write-Log "Bundled Python verified: $PythonVersion" "SUCCESS"
+    Write-Log "Python path: $VenvPython"
+
+    $DjangoCheck = & "$VenvPython" -c "import django; print(django.get_version())" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled runtime is missing Django: $DjangoCheck. The installer package appears to be incomplete or corrupted."
+    }
+    Write-Log "Django verified: $DjangoCheck" "SUCCESS"
 }
 
 if (!$StepSuccess) {
     Show-ErrorDialog -Title "Crystal POS Setup Failed" `
-        -Message "Failed to create virtual environment." `
+        -Message "The bundled Python runtime is missing or broken." `
         -Details $Script:LastError
     exit 1
 }
 
 # ============================================================================
-# STEP 3: UPGRADE PIP AND INSTALL SETUPTOOLS
+# STEP 2: PREPARE DATABASE DIRECTORY
 # ============================================================================
-Write-StepHeader "3" "Upgrading pip and Installing setuptools"
-
-$StepSuccess = Invoke-StepWithErrorHandling -StepName "Upgrade pip" -Action {
-    Write-Log "Upgrading pip..."
-    # Quote paths to handle spaces in 'Program Files'
-    $output = & "$VenvPython" -m pip install --upgrade pip 2>&1
-    $output | ForEach-Object { Write-Log "  $_" "DEBUG" }
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "pip upgrade had issues, continuing..." "WARN"
-    }
-    
-    Write-Log "Installing setuptools and wheel..."
-    # setuptools>=81 removed pkg_resources entirely, which djangorestframework-simplejwt==5.3.0
-    # still imports at module load time. Pinning below that keeps every Django command from
-    # crashing with "ModuleNotFoundError: No module named 'pkg_resources'".
-    $output = & "$VenvPip" install --upgrade "setuptools<81" wheel 2>&1
-    $output | ForEach-Object { Write-Log "  $_" "DEBUG" }
-    
-    Write-Log "pip and setuptools ready" "SUCCESS"
-}
-
-if (!$StepSuccess) {
-    Write-Log "pip upgrade had issues, but continuing with setup..." "WARN"
-}
-
-# ============================================================================
-# STEP 4: INSTALL BACKEND REQUIREMENTS
-# ============================================================================
-Write-StepHeader "4" "Installing Backend Requirements"
-
-$RequirementsPath = Join-Path $InstallDir "backend\requirements.txt"
-
-$StepSuccess = Invoke-StepWithErrorHandling -StepName "Install Requirements" -Action {
-    if (!(Test-Path $RequirementsPath)) {
-        throw "requirements.txt not found at: $RequirementsPath"
-    }
-    
-    Write-Log "Installing from: $RequirementsPath"
-    Write-Log "This may take a few minutes..."
-    
-    # Quote paths to handle spaces in 'Program Files'
-    $output = & "$VenvPip" install -r "$RequirementsPath" 2>&1
-    $output | ForEach-Object { Write-Log "  $_" "DEBUG" }
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "pip install failed with exit code $LASTEXITCODE"
-    }
-    
-    Write-Log "Backend requirements installed successfully" "SUCCESS"
-}
-
-if (!$StepSuccess) {
-    Show-ErrorDialog -Title "Crystal POS Setup Failed" `
-        -Message "Failed to install Python dependencies." `
-        -Details $Script:LastError
-    exit 1
-}
-
-# ============================================================================
-# STEP 5: PREPARE DATABASE DIRECTORY
-# ============================================================================
-Write-StepHeader "5" "Preparing Database Directory"
+Write-StepHeader "2" "Preparing Database Directory"
 
 $DataDir = Join-Path $InstallDir "data"
 $DbPath = Join-Path $DataDir "db.sqlite3"
@@ -429,9 +277,9 @@ if (!$StepSuccess) {
 }
 
 # ============================================================================
-# STEP 6: RUN DJANGO MIGRATIONS
+# STEP 3: RUN DJANGO MIGRATIONS
 # ============================================================================
-Write-StepHeader "6" "Running Django Migrations"
+Write-StepHeader "3" "Running Django Migrations"
 
 $ManagePy = Join-Path $InstallDir "backend\manage.py"
 $BackendDir = Join-Path $InstallDir "backend"
@@ -467,9 +315,9 @@ if (!$StepSuccess) {
 }
 
 # ============================================================================
-# STEP 7: CREATE ADMIN USER
+# STEP 4: CREATE ADMIN USER
 # ============================================================================
-Write-StepHeader "7" "Creating Admin User"
+Write-StepHeader "4" "Creating Admin User"
 
 $StepSuccess = Invoke-StepWithErrorHandling -StepName "Create Admin User" -Action {
     $CreateSuperuserScript = @"
@@ -488,7 +336,7 @@ try:
     User = get_user_model()
     
     if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@crystalpos.com', 'admin123')
+        User.objects.create_superuser('admin', 'admin@crystalpos.com', 'admin123', role='ADMIN')
         print('SUCCESS: Admin user created (admin / admin123)')
     else:
         print('INFO: Admin user already exists')
@@ -532,9 +380,9 @@ if (!$StepSuccess) {
 }
 
 # ============================================================================
-# STEP 8: VERIFY INSTALLATION
+# STEP 5: VERIFY INSTALLATION
 # ============================================================================
-Write-StepHeader "8" "Verifying Installation"
+Write-StepHeader "5" "Verifying Installation"
 
 $StepSuccess = Invoke-StepWithErrorHandling -StepName "Verify Installation" -Action {
     Write-Log "Checking Django installation..."

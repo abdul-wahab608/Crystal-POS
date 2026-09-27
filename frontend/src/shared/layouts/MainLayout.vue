@@ -68,6 +68,7 @@ const navigationItems = [
   { name: 'Purchases', href: '/purchases', permission: null },
   { name: 'Payments', href: '/payments', permission: null },
   { name: 'Reports', href: '/reports', permission: null },
+  { name: 'Profit', href: '/profit', permission: null },
   { name: 'Assets', href: '/assets', permission: null },
   { name: 'Users', href: '/users', permission: null },
   { name: 'Import History', href: '/import-history', permission: 'superuser' },

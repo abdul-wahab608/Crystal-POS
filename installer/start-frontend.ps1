@@ -3,7 +3,7 @@
 
 param(
     [string]$InstallDir = (Split-Path -Parent $PSScriptRoot),
-    [string]$BackendUrl = "http://localhost:8000"
+    [string]$BackendUrl = "http://localhost:8010"
 )
 
 $FrontendDist = Join-Path $InstallDir "frontend\dist"

@@ -223,7 +223,7 @@ async function fetchSessions() {
   error.value = ''
   
   try {
-    const response = await api.get('/api/import-sessions/')
+    const response = await api.get('/import-sessions/')
     sessions.value = response.data.results || response.data || []
   } catch (e: any) {
     error.value = e.response?.data?.detail || 'Failed to load import history'
@@ -241,7 +241,7 @@ async function undoImport(session: ImportSession) {
   undoing.value = session.id
   
   try {
-    await api.post(`/api/import-sessions/${session.id}/undo/`)
+    await api.post(`/import-sessions/${session.id}/undo/`)
     toast.success('Import Undone', 'The imported records have been deleted.')
     await fetchSessions()
   } catch (e: any) {

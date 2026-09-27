@@ -112,10 +112,10 @@
                 </div>
               </td>
               <td>
-                <span class="category-badge">{{ asset.category }}</span>
+                <span class="category-badge">{{ asset.type }}</span>
               </td>
-              <td>₨{{ asset.purchase_value.toFixed(2) }}</td>
-              <td>₨{{ asset.current_value.toFixed(2) }}</td>
+              <td>₨{{ Number(asset.purchase_value).toFixed(2) }}</td>
+              <td>₨{{ Number(asset.current_value).toFixed(2) }}</td>
               <td>
                 <span :class="getStatusClass(asset.status)">
                   {{ asset.status }}
@@ -172,26 +172,28 @@
           
           <div class="form-row">
             <div class="form-group">
-              <label for="category">Category</label>
-              <select id="category" v-model="form.category" required class="form-input">
-                <option value="">Select Category</option>
-                <option value="Equipment">Equipment</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Vehicles">Vehicles</option>
-                <option value="Buildings">Buildings</option>
-                <option value="Technology">Technology</option>
-                <option value="Other">Other</option>
+              <label for="type">Type</label>
+              <select id="type" v-model="form.type" required class="form-input">
+                <option value="">Select Type</option>
+                <option value="MACHINE">Machine</option>
+                <option value="MOLD">Mold</option>
+                <option value="EQUIPMENT">Equipment</option>
+                <option value="FURNITURE">Furniture</option>
+                <option value="VEHICLE">Vehicle</option>
+                <option value="BUILDING">Building</option>
+                <option value="TECHNOLOGY">Technology</option>
+                <option value="OTHER">Other</option>
               </select>
             </div>
-            
+
             <div class="form-group">
               <label for="status">Status</label>
               <select id="status" v-model="form.status" required class="form-input">
                 <option value="">Select Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Under Maintenance">Under Maintenance</option>
-                <option value="Disposed">Disposed</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+                <option value="MAINTENANCE">Under Maintenance</option>
+                <option value="DISPOSED">Disposed</option>
               </select>
             </div>
           </div>
@@ -307,20 +309,20 @@ const filteredAssets = computed(() => {
   return assets.value.filter(asset => 
     asset.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
     asset.description.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    asset.category.toLowerCase().includes(searchTerm.value.toLowerCase())
+    asset.type.toLowerCase().includes(searchTerm.value.toLowerCase())
   )
 })
 
-const totalValue = computed(() => 
-  assets.value.reduce((sum, asset) => sum + asset.current_value, 0)
+const totalValue = computed(() =>
+  assets.value.reduce((sum, asset) => sum + Number(asset.current_value), 0)
 )
 
-const activeAssets = computed(() => 
-  assets.value.filter(a => a.status === 'Active').length
+const activeAssets = computed(() =>
+  assets.value.filter(a => a.status === 'ACTIVE').length
 )
 
-const depreciatedAssets = computed(() => 
-  assets.value.filter(a => a.current_value < a.purchase_value * 0.5).length
+const depreciatedAssets = computed(() =>
+  assets.value.filter(a => Number(a.current_value) < Number(a.purchase_value) * 0.5).length
 )
 
 function editAsset(asset: Asset) {
@@ -380,7 +382,7 @@ function getStatusClass(status: string) {
       return 'status-active'
     case 'inactive':
       return 'status-inactive'
-    case 'under maintenance':
+    case 'maintenance':
       return 'status-maintenance'
     case 'disposed':
       return 'status-disposed'

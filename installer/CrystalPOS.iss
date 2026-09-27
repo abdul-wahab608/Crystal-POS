@@ -62,6 +62,11 @@ Source: "{#ProjectRoot}\backend\requirements.txt"; DestDir: "{app}\backend"; Fla
 ; Frontend dist (built Vue app)
 Source: "{#ProjectRoot}\frontend\dist\*"; DestDir: "{app}\frontend\dist"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; Bundled Python runtime with all backend dependencies pre-installed (see
+; build-python-runtime.ps1) - makes the installer fully self-contained and
+; offline-installable, no system Python or PyPI access required.
+Source: "runtime\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
+
 ; Installer scripts
 Source: "setup.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "start-app.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
@@ -99,32 +104,4 @@ Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\backend\__pycache__"
 
 [Messages]
-WelcomeLabel2=This will install [name] on your computer.%n%nRequirements:%n- Python 3.10 or later must be installed%n- Internet connection for initial setup%n%nThe setup will automatically configure the database and create a default admin user.
-
-[Code]
-function IsPythonInstalled(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  Result := Exec('python', '--version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
-end;
-
-function InitializeSetup(): Boolean;
-var
-  ErrorCode: Integer;
-begin
-  Result := True;
-  
-  if not IsPythonInstalled() then
-  begin
-    if MsgBox('Python is not installed or not in PATH.' + #13#10 + #13#10 +
-              'Crystal POS requires Python 3.10 or later.' + #13#10 +
-              'Would you like to download Python now?' + #13#10 + #13#10 +
-              'Click Yes to open the Python download page, then run this installer again.',
-              mbConfirmation, MB_YESNO) = IDYES then
-    begin
-      ShellExec('open', 'https://www.python.org/downloads/', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
-    end;
-    Result := False;
-  end;
-end;
+WelcomeLabel2=This will install [name] on your computer.%n%nEverything required (including the Python runtime) is bundled in this installer - no internet connection or pre-installed software is needed.%n%nThe setup will automatically configure the database and create a default admin user.

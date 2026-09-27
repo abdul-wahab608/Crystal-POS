@@ -84,7 +84,7 @@ export const useRawMaterialsStore = defineStore('rawMaterials', () => {
 
   async function fetchLowStock() {
     try {
-      const response = await api.get('/raw-materials/low_stock/')
+      const response = await api.get('/raw-materials/materials/low_stock/')
       // Update materials with low stock flag
       const lowStockIds = Array.isArray(response.data) ? response.data.map((item: any) => item.id) : []
       materials.value = materials.value.map(material => ({

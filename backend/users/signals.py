@@ -10,6 +10,7 @@ def create_default_superuser(sender, **kwargs):
         'is_superuser': True,
         'is_staff': True,
         'is_active': True,
+        'role': User.ADMIN,
     })
     admin_user.set_password('admin123')
     admin_user.save()

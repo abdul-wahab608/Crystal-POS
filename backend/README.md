@@ -45,16 +45,16 @@ A Django REST API backend for a comprehensive inventory management and point-of-
 
 ## API Endpoints
 
-- **Admin:** `http://127.0.0.1:8000/admin/`
-- **Users:** `http://127.0.0.1:8000/api/users/`
-- **Customers:** `http://127.0.0.1:8000/api/customers/`
-- **Vendors:** `http://127.0.0.1:8000/api/vendors/`
-- **Products:** `http://127.0.0.1:8000/api/products/`
-- **Sales:** `http://127.0.0.1:8000/api/sales/`
-- **Purchases:** `http://127.0.0.1:8000/api/purchases/`
-- **Assets:** `http://127.0.0.1:8000/api/assets/`
-- **Payments:** `http://127.0.0.1:8000/api/payments/`
-- **Reports:** `http://127.0.0.1:8000/api/reports/`
+- **Admin:** `http://127.0.0.1:8010/admin/`
+- **Users:** `http://127.0.0.1:8010/api/users/`
+- **Customers:** `http://127.0.0.1:8010/api/customers/`
+- **Vendors:** `http://127.0.0.1:8010/api/vendors/`
+- **Products:** `http://127.0.0.1:8010/api/products/`
+- **Sales:** `http://127.0.0.1:8010/api/sales/`
+- **Purchases:** `http://127.0.0.1:8010/api/purchases/`
+- **Assets:** `http://127.0.0.1:8010/api/assets/`
+- **Payments:** `http://127.0.0.1:8010/api/payments/`
+- **Reports:** `http://127.0.0.1:8010/api/reports/`
 
 ## Project Structure
 

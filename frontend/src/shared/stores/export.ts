@@ -35,11 +35,11 @@ export const useExportStore = defineStore('export', {
 
       // Map entity types to API endpoints
       const endpointMap: Record<string, string> = {
-        customers: '/api/customers',
-        vendors: '/api/vendors',
-        products: '/api/products',
-        raw_materials: '/api/raw-materials',
-        assets: '/api/assets',
+        customers: '/customers',
+        vendors: '/vendors',
+        products: '/products',
+        raw_materials: '/raw-materials/materials',
+        assets: '/assets',
       }
 
       const endpoint = endpointMap[entityType]

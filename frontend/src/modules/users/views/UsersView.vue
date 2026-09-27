@@ -177,10 +177,10 @@
             <label for="role">Role</label>
             <select id="role" v-model="form.role" required class="form-input">
               <option value="">Select Role</option>
-              <option value="admin">Administrator</option>
-              <option value="manager">Manager</option>
-              <option value="staff">Staff</option>
-              <option value="user">User</option>
+              <option value="ADMIN">Administrator</option>
+              <option value="MANAGER">Manager</option>
+              <option value="CASHIER">Cashier</option>
+              <option value="STAFF">Staff</option>
             </select>
           </div>
           
@@ -248,8 +248,8 @@ const activeUsers = computed(() =>
   users.value.filter(u => u.is_active).length
 )
 
-const adminUsers = computed(() => 
-  users.value.filter(u => u.role === 'admin').length
+const adminUsers = computed(() =>
+  users.value.filter(u => u.role === 'ADMIN').length
 )
 
 function editUser(user: User) {

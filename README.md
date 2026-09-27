@@ -240,9 +240,9 @@ After installation or starting the servers:
 
 | Component | URL |
 |-----------|-----|
-| **Application** | http://localhost:8000 |
-| **API Endpoints** | http://localhost:8000/api/ |
-| **Django Admin** | http://localhost:8000/admin/ |
+| **Application** | http://localhost:8010 |
+| **API Endpoints** | http://localhost:8010/api/ |
+| **Django Admin** | http://localhost:8010/admin/ |
 
 ### Default Credentials
 
@@ -442,7 +442,7 @@ dist/installer/CrystalPOS-Setup-1.0.0.exe
 - Make sure to check "Add Python to PATH" during installation
 
 #### Backend server won't start
-- Check if port 8000 is in use: `netstat -ano | findstr :8000`
+- Check if port 8010 is in use: `netstat -ano | findstr :8010`
 - Kill the process or use a different port
 
 #### Login fails with 500 error

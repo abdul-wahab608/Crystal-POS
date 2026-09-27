@@ -88,7 +88,7 @@ describe('BatchActionsStore', () => {
       
       const result = await store.bulkDelete('customers')
       
-      expect(api.post).toHaveBeenCalledWith('/api/customers/bulk_delete/', { ids: [1, 2, 3] })
+      expect(api.post).toHaveBeenCalledWith('/customers/bulk_delete/', { ids: [1, 2, 3] })
       expect(result.success).toBe(true)
       expect(result.count).toBe(3)
       expect(store.selectedCount('customers')).toBe(0)
@@ -130,7 +130,7 @@ describe('BatchActionsStore', () => {
       
       const result = await store.bulkActivate('customers')
       
-      expect(api.post).toHaveBeenCalledWith('/api/customers/bulk_activate/', { ids: [1, 2] })
+      expect(api.post).toHaveBeenCalledWith('/customers/bulk_activate/', { ids: [1, 2] })
       expect(result.success).toBe(true)
       expect(result.count).toBe(2)
     })
@@ -147,7 +147,7 @@ describe('BatchActionsStore', () => {
       
       const result = await store.bulkDeactivate('vendors')
       
-      expect(api.post).toHaveBeenCalledWith('/api/vendors/bulk_deactivate/', { ids: [5, 6] })
+      expect(api.post).toHaveBeenCalledWith('/vendors/bulk_deactivate/', { ids: [5, 6] })
       expect(result.success).toBe(true)
     })
   })
@@ -163,7 +163,7 @@ describe('BatchActionsStore', () => {
       
       const result = await store.bulkUpdate('products', { category: 'Electronics' })
       
-      expect(api.post).toHaveBeenCalledWith('/api/products/bulk_update/', { 
+      expect(api.post).toHaveBeenCalledWith('/products/bulk_update/', {
         ids: [1, 2, 3], 
         data: { category: 'Electronics' } 
       })
@@ -183,7 +183,7 @@ describe('BatchActionsStore', () => {
       
       await store.bulkDelete('raw_materials')
       
-      expect(api.post).toHaveBeenCalledWith('/api/raw-materials/bulk_delete/', { ids: [1] })
+      expect(api.post).toHaveBeenCalledWith('/raw-materials/materials/bulk_delete/', { ids: [1] })
     })
   })
 })

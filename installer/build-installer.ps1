@@ -4,6 +4,7 @@
 param(
     [switch]$SkipFrontendBuild,
     [switch]$SkipBackendCheck,
+    [switch]$SkipRuntimeBuild,
     [string]$InnoSetupPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 )
 
@@ -60,6 +61,21 @@ if (!$SkipFrontendBuild) {
 } else {
     Write-Host ""
     Write-Host "Step 2: Skipping frontend build."
+}
+
+# Step 2b: Stage offline Python runtime (Python + all backend deps pre-installed,
+# so the compiled installer needs no system Python or PyPI access at install time)
+if (!$SkipRuntimeBuild) {
+    Write-Host ""
+    Write-Host "Step 2b: Staging offline Python runtime..."
+    & (Join-Path $InstallerDir "build-python-runtime.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to stage Python runtime."
+        exit 1
+    }
+} else {
+    Write-Host ""
+    Write-Host "Step 2b: Skipping Python runtime staging."
 }
 
 # Step 3: Create dist directory

@@ -12,6 +12,8 @@ const PaymentsView = () => import('../modules/payments/views/PaymentsView.vue')
 const ReportsView = () => import('../modules/reports/views/ReportsView.vue')
 const UsersView = () => import('../modules/users/views/UsersView.vue')
 const RawMaterialsView = () => import('../modules/raw_materials/views/RawMaterialsView.vue')
+const ProfitAnalyticsView = () => import('../modules/profit/views/ProfitAnalyticsView.vue')
+const CostManagementView = () => import('../modules/profit/views/CostManagementView.vue')
 const DashboardView = () => import('../views/HomeView.vue')
 const LoginView = () => import('../views/LoginView.vue')
 const ImportHistoryView = () => import('../views/ImportHistoryView.vue')
@@ -41,6 +43,8 @@ const router = createRouter({
         { path: 'reports', name: 'reports', component: ReportsView },
         { path: 'users', name: 'users', component: UsersView },
         { path: 'raw-materials', name: 'raw-materials', component: RawMaterialsView },
+        { path: 'profit', name: 'profit', component: ProfitAnalyticsView },
+        { path: 'profit/costs', name: 'profit-costs', component: CostManagementView },
         { path: 'import-history', name: 'import-history', component: ImportHistoryView },
       ],
     },
