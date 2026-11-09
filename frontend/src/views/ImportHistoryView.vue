@@ -100,7 +100,7 @@
                 v-if="canUndo(session)"
                 @click="undoImport(session)"
                 class="btn-undo"
-                :disabled="undoing === session.id"
+                :disabled="undoing === session.id || queuedUndos.includes(session.id)"
               >
                 <svg v-if="undoing === session.id" class="w-4 h-4 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -132,6 +132,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import api from '../shared/api/axios'
+import { isQueuedWrite } from '../shared/utils/queuedWrite'
 import { useToastStore } from '../shared/stores/toast'
 import { getImportableEntities, IMPORT_CONFIGS } from '../shared/constants/importFields'
 
@@ -161,6 +162,7 @@ const toast = useToastStore()
 
 const loading = ref(false)
 const undoing = ref<number | null>(null)
+const queuedUndos = ref<number[]>([])
 const error = ref('')
 const sessions = ref<ImportSession[]>([])
 
@@ -245,6 +247,10 @@ async function undoImport(session: ImportSession) {
     toast.success('Import Undone', 'The imported records have been deleted.')
     await fetchSessions()
   } catch (e: any) {
+    if (isQueuedWrite(e)) {
+      queuedUndos.value.push(session.id)
+      return
+    }
     toast.error('Undo Failed', e.response?.data?.error || 'Failed to undo import')
   } finally {
     undoing.value = null

@@ -58,10 +58,8 @@
             <tr>
               <th>Purchase ID</th>
               <th>Vendor</th>
-              <th>Invoice Number</th>
               <th>Items</th>
               <th>Total Amount</th>
-              <th>Payment Status</th>
               <th>Date</th>
               <th>Actions</th>
             </tr>
@@ -70,7 +68,6 @@
             <tr v-for="purchase in filteredPurchases" :key="purchase.id" class="table-row">
               <td>#{{ purchase.id }}</td>
               <td>{{ purchase.vendor_name || 'N/A' }}</td>
-              <td>{{ purchase.invoice_number || 'N/A' }}</td>
               <td>
                 <div class="items-list">
                   <div v-if="purchase.items && purchase.items.length > 0">
@@ -82,12 +79,7 @@
                 </div>
               </td>
               <td>₨{{ (Number(purchase.total_amount) || 0).toFixed(2) }}</td>
-              <td>
-                <span :class="getStatusBadge(purchase.payment_status)">
-                  {{ purchase.payment_status || 'UNPAID' }}
-                </span>
-              </td>
-              <td>{{ formatDate(purchase.date || purchase.created_at) }}</td>
+              <td>{{ formatDate(purchase.date) }}</td>
               <td>
                 <div class="actions">
                   <button @click="viewPurchase(purchase)" class="action-btn view">View</button>
@@ -277,6 +269,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { usePurchasesStore } from '../stores/purchases'
+import type { CreatePurchaseItem } from '../types'
 import { useRawMaterialsStore } from '../../raw_materials/stores/raw_materials'
 import { useProductsStore } from '../../products/stores/products'
 import { useVendorsStore } from '../../vendors/stores/vendors'
@@ -316,8 +309,7 @@ const vendors = computed(() => vendorsStore.vendors.filter(v => v.is_active))
 const filteredPurchases = computed(() => {
   if (!searchTerm.value) return purchases.value
   return purchases.value.filter(purchase => 
-    (purchase.vendor_name || '').toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    (purchase.invoice_number || '').toLowerCase().includes(searchTerm.value.toLowerCase())
+    (purchase.vendor_name || '').toLowerCase().includes(searchTerm.value.toLowerCase())
   )
 })
 
@@ -336,7 +328,7 @@ const thisMonthPurchases = computed(() => {
   const thisMonth = new Date().getMonth()
   const thisYear = new Date().getFullYear()
   return purchases.value.filter(purchase => {
-    const purchaseDate = new Date(purchase.purchase_date)
+    const purchaseDate = new Date(purchase.date)
     return purchaseDate.getMonth() === thisMonth && purchaseDate.getFullYear() === thisYear
   }).length
 })
@@ -384,13 +376,13 @@ async function savePurchase() {
     const totalAmount = formTotal.value
     
     // Prepare items for backend - create new products if needed
-    const items = []
+    const items: CreatePurchaseItem[] = []
     
     for (const item of form.value.items) {
-      let productId = null
+      let productId: number | null = null
       
       if (item.type === 'existing_product' || item.type === 'existing_material') {
-        productId = item.product_id
+        productId = Number(item.product_id)
         
         if (!productId) {
           alert('Please select a product or raw material from the dropdown')
@@ -436,11 +428,8 @@ async function savePurchase() {
     
     // Create purchase with items
     await purchasesStore.createPurchase({
-      vendor: form.value.vendor,
+      vendor: Number(form.value.vendor),
       total_amount: totalAmount,
-      date: form.value.purchase_date,
-      invoice_number: form.value.invoice_number,
-      payment_status: form.value.payment_status,
       items: items
     })
     
@@ -472,15 +461,6 @@ function getRawMaterialName(rawMaterialId: number) {
 function getRawMaterialUnit(rawMaterialId: number) {
   const material = rawMaterials.value.find(m => m.id === rawMaterialId)
   return material?.unit || ''
-}
-
-function getStatusBadge(status: string) {
-  const statusMap: Record<string, string> = {
-    'PAID': 'status-paid',
-    'UNPAID': 'status-unpaid',
-    'PARTIAL': 'status-partial'
-  }
-  return statusMap[status] || 'status-unpaid'
 }
 
 function loadPurchases() {

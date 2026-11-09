@@ -94,7 +94,7 @@ export const useRawMaterialsStore = defineStore('rawMaterials', () => {
     } catch (error) {
       materials.value = materials.value.map(material => ({
         ...material,
-        needs_reorder: material.available_stock <= material.reorder_level
+        needs_reorder: Number(material.available_stock) <= Number(material.reorder_level)
       }))
     }
   }

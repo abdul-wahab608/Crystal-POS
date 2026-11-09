@@ -3,6 +3,7 @@
  */
 import { defineStore } from 'pinia'
 import api from '../api/axios'
+import { isQueuedWrite } from '../utils/queuedWrite'
 
 export interface Unit {
   id: number
@@ -60,6 +61,7 @@ export const useUnitsStore = defineStore('units', {
         this.units.push(res.data)
         return res.data
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.detail || e.message
         throw e
       }
@@ -70,6 +72,7 @@ export const useUnitsStore = defineStore('units', {
         await api.delete(`/units/${id}/`)
         this.units = this.units.filter(u => u.id !== id)
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.error || e.message
         throw e
       }

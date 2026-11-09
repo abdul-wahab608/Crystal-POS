@@ -2,15 +2,15 @@
 import { onMounted } from 'vue'
 import ToastContainer from './shared/components/ToastContainer.vue'
 import indexedDBManager from './shared/utils/indexedDBManager'
+import offlineManager from './shared/utils/offlineManager'
 
-// Initialize IndexedDB on app startup
 onMounted(async () => {
   try {
-    localStorage.removeItem('offline_sync_queue')
     await indexedDBManager.init()
   } catch (error) {
     console.error('Failed to initialize IndexedDB:', error)
   }
+  offlineManager.start()
 })
 </script>
 

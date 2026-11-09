@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Sale, CreateSaleRequest, UpdateSaleRequest } from '../types'
 import api from '../../../shared/api/axios'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useSalesStore = defineStore('sales', {
   state: () => ({
@@ -33,6 +34,7 @@ export const useSalesStore = defineStore('sales', {
         this.sales.push(res.data)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.response?.data || e.message
         throw e
       }
@@ -44,6 +46,7 @@ export const useSalesStore = defineStore('sales', {
         if (idx !== -1) this.sales[idx] = res.data
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -54,6 +57,7 @@ export const useSalesStore = defineStore('sales', {
         this.sales = this.sales.filter(s => s.id !== id)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

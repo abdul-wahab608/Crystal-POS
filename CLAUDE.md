@@ -35,8 +35,8 @@ Only grep/read source files when context.md doesn't have enough detail for the t
 - Pinia for state. Stores are in `modules/<name>/stores/` or `shared/stores/`.
 - Axios instance is at `shared/api/axios.ts` — use it, don't create new instances.
 - Auth token: `localStorage['auth_token']`. Auth store: `shared/stores/auth.ts`.
-- Offline: GET responses cached in IndexedDB 30 min. Mutations queued when offline.
-- Router: hash history in Electron, web history in browser. Routes defined in `router/index.ts`.
+- Offline: GET responses cached in IndexedDB and served when the backend is unreachable. Writes made while unreachable are queued in IndexedDB and reject with `QueuedWriteError` — wrap write calls with `acceptQueued()` (`shared/utils/queuedWrite.ts`) so a queued save is never re-submitted.
+- Router: web history only (Electron was removed). Routes defined in `router/index.ts`.
 - `SaleItem` quantities are `quantity_dozens` — never render or POST as `quantity`.
 - `Sale` identifier is `bill_no` — never reference `receipt_number`.
 - `vendor.email` and `customer.email` do not exist — never call `.toLowerCase()` on them.

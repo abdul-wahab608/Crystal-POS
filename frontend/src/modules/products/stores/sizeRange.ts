@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import axios from '../../../shared/api/axios'
 import type { SizeRange } from '../types'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useSizeRangeStore = defineStore('sizeRange', {
   state: () => ({
@@ -27,6 +28,7 @@ export const useSizeRangeStore = defineStore('sizeRange', {
         this.sizeRanges.push(res.data)
         this.error = null
       } catch (err: any) {
+        if (isQueuedWrite(err)) return
         this.error = err.message || 'Failed to add size range'
       }
     },
@@ -36,6 +38,7 @@ export const useSizeRangeStore = defineStore('sizeRange', {
         this.sizeRanges = this.sizeRanges.filter(sr => sr.id !== id)
         this.error = null
       } catch (err: any) {
+        if (isQueuedWrite(err)) return
         this.error = err.message || 'Failed to delete size range'
       }
     },

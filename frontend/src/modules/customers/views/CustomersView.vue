@@ -203,6 +203,7 @@ import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.
 import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
 import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
 import type { Customer, CreateCustomerRequest } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const store = useCustomersStore()
 const authStore = useAuthStore()
@@ -268,7 +269,7 @@ function editCustomer(customer: Customer) {
 async function deleteCustomer(customer: Customer) {
   if (confirm('Are you sure you want to delete this customer?')) {
     try {
-      await store.deleteCustomer(customer.id)
+      await acceptQueued(() => store.deleteCustomer(customer.id))
     } catch (error) {
     }
   }
@@ -277,9 +278,9 @@ async function deleteCustomer(customer: Customer) {
 async function saveCustomer() {
   try {
     if (showEditForm.value) {
-      await store.updateCustomer(editingCustomer.value!.id, form.value)
+      await acceptQueued(() => store.updateCustomer(editingCustomer.value!.id, form.value))
     } else {
-      await store.createCustomer(form.value)
+      await acceptQueued(() => store.createCustomer(form.value))
     }
     closeForm()
   } catch (error) {

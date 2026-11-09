@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import axios from '../../../shared/api/axios'
 import type { Color } from '../types'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useColorStore = defineStore('color', {
   state: () => ({
@@ -27,6 +28,7 @@ export const useColorStore = defineStore('color', {
         this.colors.push(res.data)
         this.error = null
       } catch (err: any) {
+        if (isQueuedWrite(err)) return
         this.error = err.message || 'Failed to add color'
       }
     },
@@ -36,6 +38,7 @@ export const useColorStore = defineStore('color', {
         this.colors = this.colors.filter(c => c.id !== id)
         this.error = null
       } catch (err: any) {
+        if (isQueuedWrite(err)) return
         this.error = err.message || 'Failed to delete color'
       }
     },

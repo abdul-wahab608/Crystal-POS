@@ -4,14 +4,12 @@
 
 class IndexedDBManager {
   private dbName = 'CrystalPOS';
-  private version = 1;
+  private version = 2;
   private db: IDBDatabase | null = null;
+  private ready: Promise<void> | null = null;
 
-  /**
-   * Initialize IndexedDB
-   */
-  async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
+  init(): Promise<void> {
+    this.ready ??= new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
 
       request.onerror = () => reject(request.error);
@@ -45,9 +43,14 @@ class IndexedDBManager {
           cacheStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
 
+        if (!db.objectStoreNames.contains('syncQueue')) {
+          db.createObjectStore('syncQueue', { keyPath: 'seq' });
+        }
+
         console.log('📦 IndexedDB stores created');
       };
     });
+    return this.ready;
   }
 
   /**
@@ -159,32 +162,13 @@ class IndexedDBManager {
   /**
    * Cache API response
    */
-  async cacheResponse(key: string, data: any, ttl: number = 3600000): Promise<void> {
-    const cacheItem = {
-      key,
-      data,
-      timestamp: Date.now(),
-      expiresAt: Date.now() + ttl
-    };
-
-    await this.save('cache', cacheItem);
+  async cacheResponse(key: string, data: any): Promise<void> {
+    await this.save('cache', { key, data, timestamp: Date.now() });
   }
 
-  /**
-   * Get cached response
-   */
   async getCachedResponse(key: string): Promise<any> {
     const cacheItem = await this.get('cache', key);
-
-    if (!cacheItem) return null;
-
-    // Check if expired
-    if (Date.now() > cacheItem.expiresAt) {
-      await this.delete('cache', key);
-      return null;
-    }
-
-    return cacheItem.data;
+    return cacheItem ? cacheItem.data : null;
   }
 }
 

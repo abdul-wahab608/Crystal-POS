@@ -78,8 +78,8 @@ watch(() => props.product, (val) => {
     form.value = { 
       name: val.name, 
       unit: val.unit, 
-      cop: val.cop, 
-      quantity: val.quantity 
+      cop: Number(val.cop), 
+      quantity: Number(val.quantity) 
     }
   } else {
     form.value = { 

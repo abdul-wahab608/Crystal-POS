@@ -71,7 +71,7 @@ export function generateInventoryReport(products: any[]) {
     'Unit': product.unit,
     'COP (Cost of Production)': product.cop,
     'Quantity': product.quantity,
-    'Total Value': product.cop * product.quantity,
+    'Total Value': Number(product.cop) * Number(product.quantity),
     'Last Updated': product.last_updated
   }))
   

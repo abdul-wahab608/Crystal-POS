@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Report, CreateReportRequest, UpdateReportRequest } from '../types'
 import api from '../../../shared/api/axios'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useReportsStore = defineStore('reports', {
   state: () => ({
@@ -27,6 +28,7 @@ export const useReportsStore = defineStore('reports', {
         this.reports.push(res.data)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -38,6 +40,7 @@ export const useReportsStore = defineStore('reports', {
         if (idx !== -1) this.reports[idx] = res.data
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -48,6 +51,7 @@ export const useReportsStore = defineStore('reports', {
         this.reports = this.reports.filter(r => r.id !== id)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

@@ -43,6 +43,15 @@ export const useBillStore = defineStore('bill', {
         throw e
       }
     },
+    async fetchBillForPurchase(purchaseId: number) {
+      try {
+        const res = await api.get<Bill[]>('/billing/bills/')
+        return res.data.find(b => b.purchase === purchaseId) ?? null
+      } catch (e: any) {
+        this.error = e.response?.data?.message || e.message
+        throw e
+      }
+    },
     async fetchBill(id: number) {
       try {
         const res = await api.get<Bill>(`/billing/bills/${id}/`)

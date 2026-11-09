@@ -255,7 +255,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # Allow all origins only in development or for desktop app
-if DEBUG or os.environ.get('ELECTRON_APP') == '1':
+if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [

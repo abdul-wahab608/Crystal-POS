@@ -130,18 +130,18 @@
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              ₨{{ product.cop.toFixed(2) }}
+                              ₨{{ Number(product.cop).toFixed(2) }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center">
                 <span class="text-sm text-gray-900">{{ product.quantity }}</span>
-                <span v-if="product.quantity < 10" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                <span v-if="Number(product.quantity) < 10" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                   Low Stock
                 </span>
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              ₨{{ (product.quantity * product.cop).toFixed(2) }}
+                              ₨{{ (Number(product.quantity) * Number(product.cop)).toFixed(2) }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ formatDate(product.last_updated) }}
@@ -213,15 +213,19 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const sortField = ref<keyof Product>('name')
+type SortField = 'name' | 'unit' | 'cop' | 'quantity'
+
+const sortField = ref<SortField>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 
 const toastStore = useToastStore()
 
+const sortKey = (p: Product) => sortField.value === 'cop' || sortField.value === 'quantity' ? Number(p[sortField.value]) : p[sortField.value]
+
 const sortedProducts = computed(() => {
   return [...props.products].sort((a, b) => {
-    const aValue = a[sortField.value]
-    const bValue = b[sortField.value]
+    const aValue = sortKey(a)
+    const bValue = sortKey(b)
     
     if (aValue < bValue) return sortDirection.value === 'asc' ? -1 : 1
     if (aValue > bValue) return sortDirection.value === 'asc' ? 1 : -1
@@ -229,7 +233,7 @@ const sortedProducts = computed(() => {
   })
 })
 
-const toggleSort = (field: keyof Product) => {
+const toggleSort = (field: SortField) => {
   if (sortField.value === field) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
   } else {

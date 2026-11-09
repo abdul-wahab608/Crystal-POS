@@ -80,7 +80,6 @@
               </th>
               <th>Name</th>
               <th>Contact Person</th>
-              <th>Email</th>
               <th>Phone</th>
               <th>Address</th>
               <th>Status</th>
@@ -94,7 +93,6 @@
               </td>
               <td>{{ vendor.name }}</td>
               <td>{{ vendor.contact_person }}</td>
-              <td>{{ vendor.email }}</td>
               <td>{{ vendor.phone }}</td>
               <td>{{ vendor.address }}</td>
               <td>
@@ -149,6 +147,7 @@ import ExportButton from '../../../shared/components/ExportButton.vue'
 import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
 import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
 import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const store = useVendorsStore()
 const authStore = useAuthStore()
@@ -170,8 +169,7 @@ const filteredVendors = computed(() => {
   if (!searchTerm.value) return vendors.value
   return vendors.value.filter(vendor => 
     vendor.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    vendor.contact_person.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    vendor.email.toLowerCase().includes(searchTerm.value.toLowerCase())
+    vendor.contact_person.toLowerCase().includes(searchTerm.value.toLowerCase())
   )
 })
 
@@ -196,7 +194,7 @@ function editVendor(vendor: Vendor) {
 
 function deleteVendor(id: number) {
   if (confirm('Are you sure you want to delete this vendor?')) {
-    store.deleteVendor(id)
+    acceptQueued(() => store.deleteVendor(id))
   }
 }
 
@@ -204,9 +202,9 @@ async function handleSave(vendorData: any) {
   try {
     errorMessage.value = ''
     if (showEditForm.value && editingVendor.value) {
-      await store.updateVendor(editingVendor.value.id, vendorData)
+      await acceptQueued(() => store.updateVendor(editingVendor.value!.id, vendorData))
     } else {
-      await store.createVendor(vendorData)
+      await acceptQueued(() => store.createVendor(vendorData))
     }
     closeForm()
   } catch (error: any) {

@@ -1,6 +1,6 @@
 export interface Payment {
   id: number;
-  amount: number;
+  amount: number | string;
   date: string;
   method: 'CASH' | 'CHEQUE' | 'BANK_TRANSFER';
   reference?: string;
@@ -12,7 +12,7 @@ export interface Bill {
   id: number;
   number: string;
   date: string;
-  amount: number;
+  amount: number | string;
   payment_status: 'PAID' | 'PARTIAL' | 'UNPAID';
   payment_method: 'CASH' | 'CHEQUE' | 'BANK_TRANSFER';
   purchase: number;

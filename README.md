@@ -56,10 +56,10 @@ Crystal POS is a **full-stack, enterprise-grade business management system** des
 ### 🛒 **Sales & POS Module**
 - Create sales transactions with multiple items
 - Link sales to customers for tracking
-- Multiple payment methods (Cash, Card, Bank Transfer, Cheque)
+- Multiple payment methods (Cash, Bank Transfer, Cheque, Parchi)
 - Automatic inventory deduction
 - Payment status tracking (Paid/Unpaid)
-- Receipt number generation
+- Bill number generation
 - Real-time profit calculation
 
 ### 📦 **Inventory Management**
@@ -169,21 +169,15 @@ Export detailed Excel reports:
 
 ### Windows Installer (Recommended)
 
-1. **Prerequisites**: Install [Python 3.10+](https://www.python.org/downloads/) and ensure it's added to PATH
+1. **Download**: Get the latest `CrystalPOS-Setup-1.0.0.exe` from the releases
 
-2. **Download**: Get the latest `CrystalPOS-Setup-1.0.0.exe` from the releases
-
-3. **Install**: Run the installer and follow the prompts
+2. **Install**: Run the installer and follow the prompts
    - Default location: `C:\Program Files (x86)\Crystal POS`
-   - The installer will automatically:
-     - Create a Python virtual environment
-     - Install all dependencies
-     - Set up the database
-     - Create a default admin user
+   - The installer bundles its own Python runtime and dependencies (no Python install needed) and sets up the database and a default admin user
 
-4. **Launch**: Use the desktop shortcut "Crystal POS" or Start Menu
+3. **Launch**: Use the desktop shortcut "Crystal POS" or Start Menu. The app opens in your browser at http://localhost:8010
 
-5. **Login**: 
+4. **Login**: 
    - **Username**: `admin`
    - **Password**: `admin123`
 
@@ -210,9 +204,11 @@ python manage.py migrate
 # Create admin user
 python manage.py createsuperuser
 
-# Start server
-python manage.py runserver
+# Start server on the fixed port 8010
+python manage.py runserver 8010
 ```
+
+The app uses port 8010 everywhere (backend, frontend API base URL, installer). Do not use 8000.
 
 #### Frontend Setup
 
@@ -376,7 +372,7 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py runserver
+python manage.py runserver 8010
 ```
 
 **Terminal 2 - Frontend:**
@@ -386,7 +382,7 @@ npm install
 npm run dev
 ```
 
-Access at http://localhost:5173 (Vite dev server with hot reload)
+Access at http://localhost:5173 (Vite dev server with hot reload; API calls go to http://localhost:8010)
 
 ### Code Style
 
@@ -423,13 +419,10 @@ dist/installer/CrystalPOS-Setup-1.0.0.exe
 
 ### What the Installer Does
 
-1. Copies backend and frontend files to Program Files
-2. Creates Python virtual environment
-3. Installs pip dependencies
-4. Runs Django migrations
-5. Creates admin user (admin/admin123)
-6. Creates desktop and Start Menu shortcuts
-7. Sets up environment variables
+1. Copies backend, frontend and a bundled Python runtime to Program Files
+2. Runs Django migrations
+3. Creates admin user (admin/admin123)
+4. Creates desktop and Start Menu shortcuts
 
 ---
 
@@ -437,13 +430,9 @@ dist/installer/CrystalPOS-Setup-1.0.0.exe
 
 ### Common Issues
 
-#### "Python is not installed"
-- Download and install Python 3.10+ from python.org
-- Make sure to check "Add Python to PATH" during installation
-
 #### Backend server won't start
 - Check if port 8010 is in use: `netstat -ano | findstr :8010`
-- Kill the process or use a different port
+- Stop the process using that port (the app only runs on 8010)
 
 #### Login fails with 500 error
 - Check backend logs at `C:\Program Files (x86)\Crystal POS\logs\`

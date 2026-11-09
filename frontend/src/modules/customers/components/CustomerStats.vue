@@ -17,5 +17,5 @@
 import { computed } from 'vue'
 import type { Customer } from '../types'
 const props = defineProps<{ customers: Customer[] }>()
-const totalBalance = computed(() => props.customers.reduce((sum, c) => sum + c.balance, 0))
+const totalBalance = computed(() => props.customers.reduce((sum, c) => sum + Number(c.balance), 0))
 </script> 

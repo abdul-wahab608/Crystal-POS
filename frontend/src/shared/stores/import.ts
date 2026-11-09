@@ -3,6 +3,7 @@
  */
 import { defineStore } from 'pinia'
 import api from '../api/axios'
+import { isQueuedWrite } from '../utils/queuedWrite'
 import { IMPORT_CONFIGS, type EntityImportConfig, type ImportFieldConfig } from '../constants/importFields'
 
 export interface ImportPreviewRow {
@@ -80,7 +81,8 @@ export const useImportStore = defineStore('import', {
     // Import result
     importResult: null as ImportResult | null,
     lastSessionId: null as string | null,
-    
+    importQueued: false,
+
     // Loading states
     parsing: false,
     importing: false,
@@ -143,6 +145,7 @@ export const useImportStore = defineStore('import', {
       this.suggestedMappings = {}
       this.importResult = null
       this.lastSessionId = null
+      this.importQueued = false
       this.parsing = false
       this.importing = false
       this.currentBatch = 0
@@ -268,6 +271,7 @@ export const useImportStore = defineStore('import', {
 
       this.importing = true
       this.error = null
+      this.importQueued = false
       this.currentBatch = 0
 
       try {
@@ -293,15 +297,23 @@ export const useImportStore = defineStore('import', {
         this.totalBatches = Math.ceil(dataToImport.length / batchSize)
 
         let finalResult: ImportResult | null = null
+        let queuedBatches = 0
 
         for (let i = 0; i < dataToImport.length; i += batchSize) {
           this.currentBatch = Math.floor(i / batchSize) + 1
           const batch = dataToImport.slice(i, i + batchSize)
 
-          const res = await api.post(`${config.apiEndpoint}/bulk_import/`, {
-            data: batch,
-            mappings: {}, // Already mapped
-          })
+          let res
+          try {
+            res = await api.post(`${config.apiEndpoint}/bulk_import/`, {
+              data: batch,
+              mappings: {}, // Already mapped
+            })
+          } catch (e) {
+            if (!isQueuedWrite(e)) throw e
+            queuedBatches++
+            continue
+          }
 
           // Merge results
           if (!finalResult) {
@@ -317,6 +329,7 @@ export const useImportStore = defineStore('import', {
 
         this.importResult = finalResult
         this.lastSessionId = finalResult?.session_id || null
+        this.importQueued = queuedBatches > 0
         this.currentStep = 4
       } catch (e: any) {
         this.error = e.response?.data?.error || e.message
@@ -359,12 +372,13 @@ export const useImportStore = defineStore('import', {
     async undoImport(sessionId: string) {
       try {
         const res = await api.post(`/import-sessions/${sessionId}/undo/`)
-        
+
         // Refresh history
         await this.fetchImportHistory()
-        
+
         return res.data
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         throw new Error(e.response?.data?.error || e.message)
       }
     },

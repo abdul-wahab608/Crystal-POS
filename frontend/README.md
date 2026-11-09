@@ -1,18 +1,6 @@
-# .
+# Crystal POS Frontend
 
-This template should help get you started developing with Vue 3 in Vite.
-
-## Recommended IDE Setup
-
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
+Vue 3 + TypeScript + Vite frontend. In production it is built into `dist/` and served by the Django backend at http://localhost:8010. The API base URL is http://localhost:8010/api.
 
 ## Project Setup
 
@@ -20,42 +8,30 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+### Development server
+
+Start the backend first (`cd backend && python manage.py runserver 8010`), then:
 
 ```sh
-npm run dev
+npm run dev -- --host 127.0.0.1
 ```
 
-### Type-Check, Compile and Minify for Production
+Access at http://localhost:5173.
+
+### Build
 
 ```sh
 npm run build
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+### Type-check
+
+```sh
+npm run type-check
+```
+
+### Unit tests (Vitest)
 
 ```sh
 npm run test:unit
-```
-
-### Run End-to-End Tests with [Nightwatch](https://nightwatchjs.org/)
-
-```sh
-# When using CI, the project must be built first.
-npm run build
-
-# Runs the end-to-end tests
-npm run test:e2e
-# Runs the tests only on Chrome
-npm run test:e2e -- --env chrome
-# Runs the tests of a specific file
-npm run test:e2e -- tests/e2e/example.ts
-# Runs the tests in debug mode
-npm run test:e2e -- --debug
-```
-    
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
 ```

@@ -204,6 +204,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useBankAccountsStore } from '../stores/bank_accounts'
 import type { BankAccount, CreateBankAccount } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const store = useBankAccountsStore()
 
@@ -311,9 +312,9 @@ async function handleSubmit() {
     delete submitData.other_bank_name
     
     if (editingAccount.value) {
-      await store.updateBankAccount(editingAccount.value.id, submitData)
+      await acceptQueued(() => store.updateBankAccount(editingAccount.value!.id, submitData))
     } else {
-      await store.createBankAccount(submitData)
+      await acceptQueued(() => store.createBankAccount(submitData))
     }
     closeModal()
     resetForm()
@@ -324,7 +325,7 @@ async function handleSubmit() {
 
 function deleteAccount(id: number) {
   if (confirm('Are you sure you want to delete this bank account?')) {
-    store.deleteBankAccount(id).catch(error => {
+    acceptQueued(() => store.deleteBankAccount(id)).catch(error => {
       console.error('Error deleting bank account:', error)
     })
   }

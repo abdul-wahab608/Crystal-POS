@@ -115,14 +115,14 @@
 							</div>
 							<div class="form-group">
 								<label class="form-label">Status</label>
-								<span class="form-input" :class="billForm.payment_status.toLowerCase()">{{ billForm.payment_status }}</span>
+								<span class="form-input" :class="billForm.payment_status?.toLowerCase()">{{ billForm.payment_status }}</span>
 							</div>
 						</div>
 						<div class="payments-section mt-4">
 							<h4 class="mb-2">Payments</h4>
 							<ul v-if="billPayments.length > 0" class="payments-list">
 								<li v-for="p in billPayments" :key="p.id">
-									{{ p.date }} - ₨{{ p.amount.toFixed(2) }} ({{ p.method }}) <span v-if="p.reference">[{{ p.reference }}]</span>
+									{{ p.date }} - ₨{{ Number(p.amount).toFixed(2) }} ({{ p.method }}) <span v-if="p.reference">[{{ p.reference }}]</span>
 								</li>
 							</ul>
 							<div v-else class="empty-payments">No payments yet.</div>
@@ -186,14 +186,18 @@ async function addPayment() {
 	const payment = await billStore.addPayment(payload)
 	billPayments.value.push(payment)
 	newPayment.value = { amount: 0, method: 'CASH', reference: '' }
-	billForm.value.payment_status = payment.bill ? payment.bill.payment_status : billForm.value.payment_status
+	if (billForm.value.id !== undefined) {
+		billForm.value.payment_status = (await billStore.fetchBill(billForm.value.id)).payment_status
+	}
 }
 onMounted(async () => {
 	if (props.purchase && props.purchase.id) {
 		try {
-			const bill = await billStore.fetchBill(props.purchase.id)
-			billForm.value = bill
-			billPayments.value = bill.payments || []
+			const bill = await billStore.fetchBillForPurchase(props.purchase.id)
+			if (bill) {
+				billForm.value = bill
+				billPayments.value = bill.payments || []
+			}
 		} catch (e) {
 			billForm.value = { number: '', payment_method: 'CASH', amount: totalAmount.value, payment_status: 'UNPAID', payments: [] }
 			billPayments.value = []
@@ -202,8 +206,8 @@ onMounted(async () => {
 })
 function onSubmit() {
 	emit('save', { ...form.value, items: purchaseItems.value, total_amount: totalAmount.value })
-	if (billForm.value.number && billForm.value.amount) {
-		billStore.createBill({ ...billForm.value, purchase: props.purchase?.id, amount: totalAmount.value })
+	if (props.purchase?.id && !billForm.value.id && billForm.value.number && billForm.value.amount) {
+		billStore.createBill({ ...billForm.value, purchase: props.purchase.id, amount: totalAmount.value })
 	}
 }
 </script>

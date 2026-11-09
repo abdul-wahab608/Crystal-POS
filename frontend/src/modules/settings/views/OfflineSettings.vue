@@ -6,11 +6,11 @@
     </div>
 
     <div class="status-cards">
-      <div class="status-card" :class="{ online: isOnline, offline: !isOnline }">
-        <div class="status-icon">{{ isOnline ? '🟢' : '🔴' }}</div>
+      <div class="status-card" :class="{ online: status.online, offline: !status.online }">
+        <div class="status-icon">{{ status.online ? '🟢' : '🔴' }}</div>
         <div class="status-info">
-          <h3>Network Status</h3>
-          <p>{{ isOnline ? 'Connected' : 'Offline Mode' }}</p>
+          <h3>Server Status</h3>
+          <p>{{ status.online ? 'Reachable' : 'Unreachable' }}</p>
         </div>
       </div>
 
@@ -18,7 +18,7 @@
         <div class="status-icon">📦</div>
         <div class="status-info">
           <h3>Sync Queue</h3>
-          <p>{{ syncQueueStatus.total }} pending items</p>
+          <p>{{ status.pending.length }} pending, {{ status.failed.length }} failed</p>
         </div>
       </div>
 
@@ -31,37 +31,38 @@
       </div>
     </div>
 
-    <div class="sync-queue-section" v-if="syncQueueStatus.total > 0">
+    <div class="sync-queue-section" v-if="status.pending.length > 0">
       <h3>📤 Pending Sync Items</h3>
       <div class="queue-list">
-        <div
-          v-for="item in syncQueueStatus.items"
-          :key="item.id"
-          class="queue-item"
-        >
-          <div class="queue-method" :class="item.method.toLowerCase()">
-            {{ item.method }}
-          </div>
+        <div v-for="item in status.pending" :key="item.seq" class="queue-item">
+          <div class="queue-method" :class="item.method">{{ item.method }}</div>
           <div class="queue-url">{{ item.url }}</div>
           <div class="queue-time">{{ formatTime(item.timestamp) }}</div>
-          <div class="queue-retries">Retries: {{ item.retries }}/{{ item.maxRetries }}</div>
         </div>
       </div>
-
       <div class="queue-actions">
-        <button @click="syncNow" class="btn btn-primary" :disabled="!isOnline">
-          🔄 Sync Now
-        </button>
-        <button @click="clearQueue" class="btn btn-danger">
-          🗑️ Clear Queue
-        </button>
+        <button @click="syncNow" class="btn btn-primary">🔄 Sync Now</button>
+      </div>
+    </div>
+
+    <div class="sync-queue-section failed-section" v-if="status.failed.length > 0">
+      <h3>⚠️ Failed to Sync</h3>
+      <p class="section-note">These changes were rejected by the server and were not saved. Discard them only after checking them.</p>
+      <div class="queue-list">
+        <div v-for="item in status.failed" :key="item.seq" class="queue-item failed-item">
+          <div class="queue-method" :class="item.method">{{ item.method }}</div>
+          <div class="queue-url">{{ item.url }}</div>
+          <div class="queue-time">{{ formatTime(item.timestamp) }}</div>
+          <div class="queue-reason">{{ item.failureReason }}</div>
+          <button @click="discard(item.seq)" class="btn btn-danger btn-small">Discard</button>
+        </div>
       </div>
     </div>
 
     <div class="cache-section">
       <h3>💾 Cache Management</h3>
       <p>Clear cached data to free up space. Data will be re-downloaded when needed.</p>
-      
+
       <div class="cache-actions">
         <button @click="clearCache('customers')" class="btn btn-secondary">
           Clear Customers Cache
@@ -82,106 +83,65 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import offlineManager from '@/shared/utils/offlineManager'
+import offlineManager, { type OfflineStatus } from '@/shared/utils/offlineManager'
 import indexedDBManager from '@/shared/utils/indexedDBManager'
 
-const isOnline = ref(navigator.onLine)
-const syncQueueStatus = ref({ total: 0, items: [] })
+const CACHE_STORES = ['customers', 'products', 'vendors', 'sales', 'purchases']
+
+const status = ref<OfflineStatus>(offlineManager.getStatus())
 const cachedItems = ref(0)
-
 let unsubscribe: (() => void) | null = null
-let intervalId: number | null = null
-
-const updateStatus = (status: { isOnline?: boolean; online?: boolean }) => {
-  isOnline.value = status.isOnline ?? status.online ?? false
-  updateSyncQueueStatus()
-}
-
-const updateSyncQueueStatus = () => {
-  syncQueueStatus.value = offlineManager.getSyncQueueStatus()
-}
 
 const updateCacheCount = async () => {
-  try {
-    const stores = ['customers', 'products', 'vendors', 'sales', 'purchases']
-    let total = 0
-    
-    for (const store of stores) {
-      const items = await indexedDBManager.getAll(store)
-      total += items.length
-    }
-    
-    cachedItems.value = total
-  } catch (error) {
-    console.error('Failed to count cached items:', error)
+  let total = 0
+  for (const store of CACHE_STORES) {
+    total += (await indexedDBManager.getAll(store)).length
   }
+  cachedItems.value = total
 }
 
-const syncNow = async () => {
-  if (!isOnline.value) return
-  
-  try {
-    await offlineManager.processSyncQueue()
-    alert('✅ Sync completed successfully!')
-    updateSyncQueueStatus()
-  } catch (error) {
-    alert('❌ Sync failed: ' + error)
-  }
-}
+const syncNow = () => offlineManager.checkReachability()
 
-const clearQueue = () => {
-  if (confirm('Are you sure you want to clear the sync queue? Pending changes will be lost.')) {
-    offlineManager.clearSyncQueue()
-    updateSyncQueueStatus()
-  }
+const discard = async (seq: number) => {
+  if (!confirm('Discard this change? It was rejected by the server and is not saved anywhere else.')) return
+  await offlineManager.discard(seq)
 }
 
 const clearCache = async (storeName: string) => {
-  if (confirm(`Clear ${storeName} cache?`)) {
-    try {
-      await indexedDBManager.clear(storeName)
-      await updateCacheCount()
-      alert(`✅ ${storeName} cache cleared`)
-    } catch (error) {
-      alert('❌ Failed to clear cache: ' + error)
-    }
+  if (!confirm(`Clear ${storeName} cache?`)) return
+  try {
+    await indexedDBManager.clear(storeName)
+    await updateCacheCount()
+    alert(`✅ ${storeName} cache cleared`)
+  } catch (error) {
+    alert('❌ Failed to clear cache: ' + error)
   }
 }
 
 const clearAllCache = async () => {
-  if (confirm('Clear ALL cached data? This cannot be undone.')) {
-    try {
-      const stores = ['customers', 'products', 'vendors', 'sales', 'purchases', 'cache']
-      for (const store of stores) {
-        await indexedDBManager.clear(store)
-      }
-      await updateCacheCount()
-      alert('✅ All cache cleared')
-    } catch (error) {
-      alert('❌ Failed to clear cache: ' + error)
+  if (!confirm('Clear ALL cached data? This cannot be undone.')) return
+  try {
+    for (const store of [...CACHE_STORES, 'cache']) {
+      await indexedDBManager.clear(store)
     }
+    await updateCacheCount()
+    alert('✅ All cache cleared')
+  } catch (error) {
+    alert('❌ Failed to clear cache: ' + error)
   }
 }
 
-const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleString()
-}
+const formatTime = (timestamp: string) => new Date(timestamp).toLocaleString()
 
 onMounted(() => {
-  unsubscribe = offlineManager.subscribe(updateStatus)
-  updateSyncQueueStatus()
+  unsubscribe = offlineManager.subscribe(next => {
+    status.value = next
+  })
   updateCacheCount()
-  
-  // Update every 3 seconds
-  intervalId = window.setInterval(() => {
-    updateSyncQueueStatus()
-    updateCacheCount()
-  }, 3000)
 })
 
 onUnmounted(() => {
   if (unsubscribe) unsubscribe()
-  if (intervalId) clearInterval(intervalId)
 })
 </script>
 
@@ -264,11 +224,21 @@ onUnmounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.failed-section {
+  border-left: 4px solid #ef4444;
+}
+
 .sync-queue-section h3,
 .cache-section h3 {
   font-size: 20px;
   font-weight: 600;
   color: #1f2937;
+  margin-bottom: 16px;
+}
+
+.section-note {
+  color: #6b7280;
+  font-size: 14px;
   margin-bottom: 16px;
 }
 
@@ -281,13 +251,17 @@ onUnmounted(() => {
 
 .queue-item {
   display: grid;
-  grid-template-columns: 80px 1fr 200px 120px;
+  grid-template-columns: 80px 1fr 200px;
   gap: 12px;
   align-items: center;
   padding: 12px;
   background: #f9fafb;
   border-radius: 8px;
   font-size: 14px;
+}
+
+.failed-item {
+  grid-template-columns: 80px 1fr 200px 1fr auto;
 }
 
 .queue-method {
@@ -301,6 +275,7 @@ onUnmounted(() => {
 
 .queue-method.post { background: #dbeafe; color: #1e40af; }
 .queue-method.put { background: #fef3c7; color: #92400e; }
+.queue-method.patch { background: #ede9fe; color: #5b21b6; }
 .queue-method.delete { background: #fee2e2; color: #991b1b; }
 
 .queue-url {
@@ -315,8 +290,8 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.queue-retries {
-  color: #9ca3af;
+.queue-reason {
+  color: #991b1b;
   font-size: 12px;
 }
 
@@ -334,6 +309,11 @@ onUnmounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .btn:disabled {

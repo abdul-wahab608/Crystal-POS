@@ -119,6 +119,7 @@ import { useSalesStore } from '../stores/sales'
 import { useCustomersStore } from '../../customers/stores/customers'
 import SalesForm from '../components/SalesForm.vue'
 import type { Sale, CreateSaleRequest } from '../types'
+import { acceptQueued, isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 const store = useSalesStore()
 const customersStore = useCustomersStore()
@@ -177,7 +178,7 @@ function viewSale(sale: Sale) {
 
 function deleteSale(id: number) {
   if (confirm('Are you sure you want to delete this sale?')) {
-    store.deleteSale(id)
+    acceptQueued(() => store.deleteSale(id))
   }
 }
 
@@ -187,6 +188,10 @@ async function handleSaveSale(payload: CreateSaleRequest) {
     closeForm()
     alert('✅ Sale created successfully! Stock has been updated.')
   } catch (error: any) {
+    if (isQueuedWrite(error)) {
+      closeForm()
+      return
+    }
     if (error && error.response && error.response.data) {
       const data = error.response.data
       const message = typeof data === 'string' ? data : data.message || data.error || JSON.stringify(data)
@@ -204,7 +209,7 @@ function closeForm() {
 async function togglePaymentStatus(sale: Sale) {
   try {
     const newStatus = sale.payment_status === 'PAID' ? 'UNPAID' : 'PAID'
-    await store.updateSale(sale.id, { payment_status: newStatus })
+    await acceptQueued(() => store.updateSale(sale.id, { payment_status: newStatus }))
   } catch (error) {
     alert('Failed to update payment status')
   }

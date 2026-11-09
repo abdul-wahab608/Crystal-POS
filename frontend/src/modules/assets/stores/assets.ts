@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Asset, CreateAssetRequest, UpdateAssetRequest } from '../types'
 import api from '../../../shared/api/axios'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useAssetsStore = defineStore('assets', {
   state: () => ({
@@ -27,6 +28,7 @@ export const useAssetsStore = defineStore('assets', {
         this.assets.push(res.data)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -38,6 +40,7 @@ export const useAssetsStore = defineStore('assets', {
         if (idx !== -1) this.assets[idx] = res.data
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -48,6 +51,7 @@ export const useAssetsStore = defineStore('assets', {
         this.assets = this.assets.filter(a => a.id !== id)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

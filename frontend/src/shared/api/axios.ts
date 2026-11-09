@@ -1,84 +1,85 @@
-import axios from 'axios'
+import axios, { type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import indexedDBManager from '../utils/indexedDBManager'
+import offlineManager, { QueuedWriteError, type WriteMethod } from '../utils/offlineManager'
+import { useToastStore } from '../stores/toast'
+import { API_BASE_URL } from './baseUrl'
 
-// Detect if running in Electron or browser
-const isElectron = !!(window as any).electronAPI
+const WRITE_METHODS: string[] = ['post', 'put', 'patch', 'delete']
 
-// Get base URL - synchronously in Electron to avoid race conditions
-const getBaseURL = (): string => {
-  if (isElectron) {
-    // In Electron, backend port is always 8010 (default in config)
-    // We'll update this after config loads, but start with default
-    return 'http://127.0.0.1:8010/api'
-  }
-  return 'http://localhost:8010/api'
-}
-
-// Initialize base URL
-let baseURL = getBaseURL()
-
-// Update base URL after Electron config loads
-if (isElectron) {
-  (async () => {
-    try {
-      const config = await (window as any).electronAPI.getConfig()
-      baseURL = `http://127.0.0.1:${config.backendPort}/api`
-      api.defaults.baseURL = baseURL
-      console.log('API Base URL updated:', baseURL)
-    } catch (error) {
-      console.error('Failed to get config from Electron, using default port 8010:', error)
-    }
-  })()
-}
-
-// Create axios instance with base configuration
 const api = axios.create({
-  baseURL: baseURL,
-  timeout: 30000, // 30s for migrations and setup operations
+  baseURL: API_BASE_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Request interceptor to add auth token
+const cacheKeyFor = (config: InternalAxiosRequestConfig) =>
+  `${config.method?.toUpperCase()} ${api.getUri(config)}`
+
+const isQueueable = (config: InternalAxiosRequestConfig) =>
+  WRITE_METHODS.includes(config.method?.toLowerCase() ?? '') &&
+  !(config.url ?? '').includes('/auth/') &&
+  !(config.data instanceof FormData)
+
+const serializedBody = (data: unknown) =>
+  typeof data === 'string' && data !== '' ? JSON.parse(data) : data
+
 api.interceptors.request.use(
-  async (config) => {
-    // Update baseURL in case it changed (though it's set on instance already)
-    config.baseURL = baseURL
-    
+  (config) => {
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor to handle errors
 api.interceptors.response.use(
   async (response) => {
-    // Cache GET responses
     if (response.config.method?.toLowerCase() === 'get' && response.data) {
-      const cacheKey = `${response.config.method}_${response.config.url}`;
-      await indexedDBManager.cacheResponse(cacheKey, response.data, 1800000); // 30 min TTL
+      await indexedDBManager.cacheResponse(cacheKeyFor(response.config), response.data)
     }
-
     return response
   },
-  (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      localStorage.removeItem('auth_token')
-      window.location.href = '/login'
+  async (error) => {
+    if (error.response) {
+      if (error.response.status === 401) {
+        localStorage.removeItem('auth_token')
+        window.location.href = '/login'
+      }
+      return Promise.reject(error)
     }
+
+    const config = error.config as InternalAxiosRequestConfig | undefined
+    if (!config || axios.isCancel(error)) return Promise.reject(error)
+
+    void offlineManager.checkReachability()
+    const method = config.method?.toLowerCase()
+
+    if (method === 'get') {
+      const cached = await indexedDBManager.getCachedResponse(cacheKeyFor(config))
+      if (cached === null) return Promise.reject(error)
+      return {
+        data: cached,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+        request: error.request,
+      } as AxiosResponse
+    }
+
+    if (isQueueable(config)) {
+      await offlineManager.enqueue(method as WriteMethod, api.getUri(config), serializedBody(config.data))
+      useToastStore().warning('Saved offline', 'It will sync when the server is reachable.')
+      throw new QueuedWriteError()
+    }
+
     return Promise.reject(error)
   }
 )
 
-// Export both as default and named export for compatibility
 export { api }
-export default api 
+export default api

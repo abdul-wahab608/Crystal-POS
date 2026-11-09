@@ -29,7 +29,7 @@
       <div v-if="selectedMaterial" class="material-info">
         <strong>{{ selectedMaterial.name }}</strong>
         <span class="stock-info">Current Stock: {{ selectedMaterial.available_stock || selectedMaterial.quantity }} {{ selectedMaterial.unit }}</span>
-        <span class="unit-price">Unit Price: ₨{{ selectedMaterial.unit_price }}</span>
+        <span class="unit-price">Unit Price: ₨{{ selectedMaterial.average_unit_price }}</span>
       </div>
       
       <div class="form-row">
@@ -127,6 +127,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRawMaterialsStore } from '../stores/raw_materials'
 import { useVendorsStore } from '@/modules/vendors/stores/vendors'
 import type { RawMaterial, CreateRawMaterialPurchase } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const emit = defineEmits<{
   success: []
@@ -157,7 +158,7 @@ const totalAmount = computed(() => {
 
 function onMaterialChange() {
   if (selectedMaterial.value) {
-    form.value.unit_price = selectedMaterial.value.unit_price
+    form.value.unit_price = Number(selectedMaterial.value.average_unit_price)
     form.value.supplier = selectedMaterial.value.supplier || ''
   }
 }
@@ -170,7 +171,7 @@ async function handleSubmit() {
   
   loading.value = true
   try {
-    await store.createPurchase(form.value)
+    await acceptQueued(() => store.createPurchase(form.value))
     emit('success')
   } catch (error) {
     // Handle error silently

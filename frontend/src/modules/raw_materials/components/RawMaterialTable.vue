@@ -32,7 +32,7 @@
             </td>
             <td>{{ mat.name }}</td>
             <td>{{ mat.unit }}</td>
-            <td>{{ mat.unit_price ? Number(mat.unit_price).toFixed(2) : '0.00' }}</td>
+            <td>{{ mat.average_unit_price ? Number(mat.average_unit_price).toFixed(2) : '0.00' }}</td>
             <td :class="{ 'low-stock': mat.needs_reorder }">
               {{ mat.available_stock ? Number(mat.available_stock).toFixed(2) : '0.00' }}
             </td>

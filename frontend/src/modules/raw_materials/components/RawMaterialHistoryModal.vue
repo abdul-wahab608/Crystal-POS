@@ -52,7 +52,7 @@
             <div v-for="purchase in store.purchaseHistory" :key="purchase.id" class="history-item">
               <div class="history-header">
                 <span class="quantity">{{ purchase.quantity_purchased }} {{ material.unit }}</span>
-                <span class="amount">₨{{ purchase.total_amount.toFixed(2) }}</span>
+                <span class="amount">₨{{ Number(purchase.total_amount).toFixed(2) }}</span>
                 <span class="date">{{ formatDate(purchase.purchase_date) }}</span>
               </div>
               <div v-if="purchase.supplier" class="supplier">

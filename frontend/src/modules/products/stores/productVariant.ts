@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import axios from '../../../shared/api/axios'
 import type { ProductVariant } from '../types'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useProductVariantStore = defineStore('productVariant', {
   state: () => ({
@@ -29,6 +30,7 @@ export const useProductVariantStore = defineStore('productVariant', {
         this.variants.push(res.data)
         this.error = null
       } catch (err: any) {
+        if (isQueuedWrite(err)) return
         this.error = err.message || 'Failed to add variant'
       }
     },
@@ -38,6 +40,7 @@ export const useProductVariantStore = defineStore('productVariant', {
         this.variants = this.variants.filter(v => v.id !== id)
         this.error = null
       } catch (err: any) {
+        if (isQueuedWrite(err)) return
         this.error = err.message || 'Failed to delete variant'
       }
     },

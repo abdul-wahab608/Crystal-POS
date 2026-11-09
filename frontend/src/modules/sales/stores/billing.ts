@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Invoice, Payment } from '../types/billing'
 import api from '../../../shared/api/axios'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useInvoiceStore = defineStore('invoice', {
   state: () => ({
@@ -29,6 +30,7 @@ export const useInvoiceStore = defineStore('invoice', {
         this.error = null
         return res.data
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -39,6 +41,7 @@ export const useInvoiceStore = defineStore('invoice', {
         this.error = null
         return res.data
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

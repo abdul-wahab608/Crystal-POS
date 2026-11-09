@@ -2,12 +2,12 @@ export interface RawMaterial {
   id: number
   name: string
   unit: string
-  unit_price: number
-  quantity: number
-  available_stock: number
+  average_unit_price: number | string
+  quantity: number | string
+  available_stock: number | string
   supplier?: string
   supplier_contact?: string
-  reorder_level: number
+  reorder_level: number | string
   needs_reorder: boolean
   created_at: string
   updated_at: string
@@ -16,7 +16,7 @@ export interface RawMaterial {
 export interface RawMaterialUsage {
   id: number
   raw_material: number
-  quantity_used: number
+  quantity_used: number | string
   reference?: string
   notes?: string
   date_used: string
@@ -25,9 +25,9 @@ export interface RawMaterialUsage {
 export interface RawMaterialPurchase {
   id: number
   raw_material: number
-  quantity_purchased: number
-  unit_price: number
-  total_amount: number
+  quantity_purchased: number | string
+  unit_price: number | string
+  total_amount: number | string
   supplier?: string
   invoice_number?: string
   notes?: string
@@ -37,10 +37,7 @@ export interface RawMaterialPurchase {
 export interface CreateRawMaterial {
   name: string
   unit: string
-  unit_price: number
   quantity: number
-  supplier?: string
-  supplier_contact?: string
   reorder_level: number
 }
 

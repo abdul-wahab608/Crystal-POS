@@ -34,24 +34,6 @@ class ErrorLogger {
       stack: error.stack,
       data: context?.data
     })
-
-    // In Electron, send to main process for persistent logging
-    if ((window as any).electronAPI) {
-      this.logToFile(timestamp, error, context)
-    }
-  }
-
-  /**
-   * Log to persistent file in Electron
-   */
-  private async logToFile(timestamp: string, error: Error, context?: ErrorContext): Promise<void> {
-    try {
-      // This would require adding an IPC handler in main.cjs
-      // For now, just console log that we would persist
-      console.log('[ErrorLogger] Would persist to file:', { timestamp, error: error.message, context })
-    } catch (e) {
-      console.error('Failed to persist error log:', e)
-    }
   }
 
   /**

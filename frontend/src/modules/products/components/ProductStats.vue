@@ -106,10 +106,10 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const totalStockValue = computed(() => props.products.reduce((sum, p) => sum + (p.quantity * p.cop), 0))
-const lowStockCount = computed(() => props.products.filter(p => p.quantity < 10).length)
+const totalStockValue = computed(() => props.products.reduce((sum, p) => sum + (Number(p.quantity) * Number(p.cop)), 0))
+const lowStockCount = computed(() => props.products.filter(p => Number(p.quantity) < 10).length)
 
-const outOfStockItems = computed(() => props.products.filter(product => product.quantity === 0).length)
+const outOfStockItems = computed(() => props.products.filter(product => Number(product.quantity) === 0).length)
 
 const lowStockPercentage = computed(() => {
   const totalProducts = props.products.length

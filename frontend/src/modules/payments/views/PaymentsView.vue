@@ -267,6 +267,7 @@ import { usePaymentsStore } from '../stores/payments'
 import { useCustomersStore } from '../../customers/stores/customers'
 import { useVendorsStore } from '../../vendors/stores/vendors'
 import type { Payment, CreatePaymentRequest } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const store = usePaymentsStore()
 const customersStore = useCustomersStore()
@@ -321,7 +322,7 @@ const filteredBanks = computed(() => {
   )
 })
 
-const form = ref<CreatePaymentRequest & { bank_name?: string; other_bank_name?: string; account_number?: string }>({
+const form = ref<CreatePaymentRequest & { bank_name?: string; other_bank_name?: string; account_number?: string; direct_payment_to_vendor?: number }>({
   customer: undefined,
   vendor: undefined,
   amount: 0,
@@ -391,16 +392,23 @@ const thisMonthPayments = computed(() => {
   }).length
 })
 
+const entityId = (entity?: number | { id: number }) => typeof entity === 'object' ? entity?.id : entity
+
 function editPayment(payment: Payment) {
   editingPayment.value = payment
-  form.value = { ...payment }
+  form.value = {
+    ...payment,
+    customer: entityId(payment.customer),
+    vendor: entityId(payment.vendor),
+    direct_payment_to_vendor: entityId(payment.direct_payment_to_vendor),
+  }
   showEditForm.value = true
 }
 
 async function deletePayment(payment: Payment) {
   if (confirm('Are you sure you want to delete this payment?')) {
     try {
-      await store.deletePayment(payment.id)
+      await acceptQueued(() => store.deletePayment(payment.id))
     } catch (error) {
       // Handle error silently
     }
@@ -424,9 +432,9 @@ async function savePayment() {
     }
     
     if (showEditForm.value) {
-      await store.updatePayment(editingPayment.value!.id, payload)
+      await acceptQueued(() => store.updatePayment(editingPayment.value!.id, payload))
     } else {
-      await store.createPayment(payload)
+      await acceptQueued(() => store.createPayment(payload))
     }
     closeForm()
   } catch (error) {

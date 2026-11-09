@@ -5,7 +5,7 @@ export interface Customer {
   address: string
   city?: string
   customer_type: 'REGULAR' | 'WALK_IN'
-  balance: number
+  balance: number | string
   is_active: boolean
   created_at: string
 }

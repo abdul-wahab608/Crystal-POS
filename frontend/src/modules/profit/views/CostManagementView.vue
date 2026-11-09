@@ -108,6 +108,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useProfitStore } from '../stores/profit'
 import { useProductsStore } from '../../products/stores/products'
 import { useAuthStore } from '../../../shared/stores/auth'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const profitStore = useProfitStore()
 const productsStore = useProductsStore()
@@ -145,12 +146,12 @@ async function submitCost() {
   if (!selectedProductId.value || !form.value.component_type) return
   submitting.value = true
   try {
-    await profitStore.addProductCost({
-      product: selectedProductId.value,
-      component_type: form.value.component_type,
+    await acceptQueued(() => profitStore.addProductCost({
+      product: selectedProductId.value!,
+      component_type: form.value.component_type!,
       amount_per_dozen: form.value.amount_per_dozen,
       valid_from: form.value.valid_from,
-    })
+    }))
     await loadForProduct()
     form.value.amount_per_dozen = 0
   } finally {
@@ -160,14 +161,14 @@ async function submitCost() {
 
 async function removeCost(id: number) {
   if (!confirm('Remove this cost entry?')) return
-  await profitStore.deleteProductCost(id)
+  await acceptQueued(() => profitStore.deleteProductCost(id))
   if (selectedProductId.value) await profitStore.fetchCurrentCost(selectedProductId.value)
 }
 
 async function addComponent() {
   const name = newComponentName.value.trim()
   if (!name) return
-  await profitStore.createCostComponent(name)
+  await acceptQueued(() => profitStore.createCostComponent(name))
   newComponentName.value = ''
   showAddComponent.value = false
 }

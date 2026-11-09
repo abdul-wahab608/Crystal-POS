@@ -70,6 +70,7 @@ import { useUnitsStore } from '../../stores/units'
 import { useToastStore } from '../../stores/toast'
 import { IMPORT_CONFIGS } from '../../constants/importFields'
 import { WIZARD_STEPS } from './types'
+import { isQueuedWrite } from '../../utils/queuedWrite'
 import StepUpload from './StepUpload.vue'
 import StepMapping from './StepMapping.vue'
 import StepPreview from './StepPreview.vue'
@@ -132,6 +133,11 @@ function goToPreview() {
 
 async function runImport() {
   await store.runImport()
+  if (store.importQueued) {
+    emit('imported')
+    handleClose()
+    return
+  }
   if (store.importResult && store.importResult.success_count > 0) {
     emit('imported')
   }
@@ -145,6 +151,7 @@ async function handleUndo() {
     toast.success('Import Undone', 'All imported records have been deleted.')
     emit('imported') // Refresh parent data
   } catch (e: any) {
+    if (isQueuedWrite(e)) return
     toast.error('Undo Failed', e.message)
   }
 }

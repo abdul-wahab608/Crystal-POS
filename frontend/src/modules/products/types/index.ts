@@ -24,8 +24,9 @@ export interface Product {
   id: number
   name: string
   unit: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
-  cop: number
-  quantity: number
+  cop: number | string
+  quantity: number | string
+  product_type: 'MANUFACTURED' | 'PURCHASED'
   size_range: number | null
   size_range_name?: string
   variants: ProductVariant[]
@@ -37,7 +38,7 @@ export interface ProductHistory {
   id: number
   product: number
   change_type: 'SALE' | 'PURCHASE' | 'ADJUSTMENT'
-  quantity_change: number
+  quantity_change: number | string
   date: string
   reference: string
   notes: string
@@ -48,6 +49,7 @@ export interface CreateProductRequest {
   unit: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
   cop: number
   quantity: number
+  product_type?: 'MANUFACTURED' | 'PURCHASED'
 }
 
 export interface UpdateProductRequest {

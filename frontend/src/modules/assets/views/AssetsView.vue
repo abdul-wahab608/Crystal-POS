@@ -275,6 +275,7 @@ import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.
 import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
 import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
 import type { Asset, CreateAssetRequest } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const store = useAssetsStore()
 const authStore = useAuthStore()
@@ -334,7 +335,7 @@ function editAsset(asset: Asset) {
 async function deleteAsset(asset: Asset) {
   if (confirm('Are you sure you want to delete this asset?')) {
     try {
-      await store.deleteAsset(asset.id)
+      await acceptQueued(() => store.deleteAsset(asset.id))
     } catch (error) {
       // Handle error silently
     }
@@ -344,9 +345,9 @@ async function deleteAsset(asset: Asset) {
 async function saveAsset() {
   try {
     if (showEditForm.value) {
-      await store.updateAsset(editingAsset.value!.id, form.value)
+      await acceptQueued(() => store.updateAsset(editingAsset.value!.id, form.value))
     } else {
-      await store.createAsset(form.value)
+      await acceptQueued(() => store.createAsset(form.value))
     }
     closeForm()
   } catch (error) {

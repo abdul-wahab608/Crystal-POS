@@ -62,7 +62,7 @@ dist-ssr/
 frontend/dist/
 *.local
 
-# Electron / Desktop App
+# Desktop build outputs
 frontend/release/
 frontend/out/
 *.exe
@@ -80,9 +80,6 @@ backend/dist/
 userData/
 appData/
 
-# Electron Builders
-electron-builder.yml
-.electron-builder.yml
 
 # Vite
 .vite/

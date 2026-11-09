@@ -7,14 +7,14 @@ export interface VendorProduct {
   raw_material?: number
   item_name: string
   item_unit: string
-  unit_price: number
-  minimum_order_quantity: number
+  unit_price: number | string
+  minimum_order_quantity: number | string
   lead_time_days: number
   is_preferred: boolean
   is_active: boolean
   notes?: string
   last_purchase_date?: string
-  last_purchase_price?: number
+  last_purchase_price?: number | string
   created_at?: string
   updated_at?: string
 }
@@ -26,7 +26,7 @@ export interface Vendor {
   address: string
   city?: string
   contact_person: string
-  balance: number
+  balance: number | string
   is_active: boolean
   vendor_products?: VendorProduct[]
   total_products_count?: number

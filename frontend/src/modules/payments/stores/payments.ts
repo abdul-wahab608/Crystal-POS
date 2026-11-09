@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Payment, CreatePaymentRequest, UpdatePaymentRequest } from '../types'
 import api from '../../../shared/api/axios'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const usePaymentsStore = defineStore('payments', {
   state: () => ({
@@ -27,6 +28,7 @@ export const usePaymentsStore = defineStore('payments', {
         this.payments.push(res.data)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -38,6 +40,7 @@ export const usePaymentsStore = defineStore('payments', {
         if (idx !== -1) this.payments[idx] = res.data
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -48,6 +51,7 @@ export const usePaymentsStore = defineStore('payments', {
         this.payments = this.payments.filter(p => p.id !== id)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

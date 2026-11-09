@@ -114,6 +114,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRawMaterialsStore } from '../stores/raw_materials'
 import { useVendorsStore } from '@/modules/vendors/stores/vendors'
 import type { RawMaterial, CreateRawMaterial } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const props = defineProps<{ material?: RawMaterial }>()
 
@@ -132,7 +133,6 @@ const isEditing = computed(() => !!props.material)
 const form = ref<CreateRawMaterial>({
   name: '',
   unit: '',
-  unit_price: 0,
   quantity: 0,
   reorder_level: 0
 })
@@ -147,8 +147,8 @@ onMounted(() => {
     form.value = {
       name: props.material.name,
       unit: props.material.unit,
-      quantity: props.material.quantity,
-      reorder_level: props.material.reorder_level
+      quantity: Number(props.material.quantity),
+      reorder_level: Number(props.material.reorder_level)
     }
   }
 })
@@ -157,9 +157,9 @@ async function handleSubmit() {
   loading.value = true
   try {
     if (isEditing.value && props.material) {
-      await store.updateMaterial(props.material.id, form.value)
+      await acceptQueued(() => store.updateMaterial(props.material!.id, form.value))
     } else {
-      await store.createMaterial(form.value)
+      await acceptQueued(() => store.createMaterial(form.value))
     }
     emit('success')
   } catch (error) {

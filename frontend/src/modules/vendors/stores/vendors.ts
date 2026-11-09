@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Vendor, CreateVendorRequest, UpdateVendorRequest } from '../types'
 import api from '../../../shared/api/axios'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useVendorsStore = defineStore('vendors', {
   state: () => ({
@@ -27,6 +28,7 @@ export const useVendorsStore = defineStore('vendors', {
         this.vendors.push(res.data)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -38,6 +40,7 @@ export const useVendorsStore = defineStore('vendors', {
         if (idx !== -1) this.vendors[idx] = res.data
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -48,6 +51,7 @@ export const useVendorsStore = defineStore('vendors', {
         this.vendors = this.vendors.filter(v => v.id !== id)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

@@ -3,6 +3,7 @@
  */
 import { defineStore } from 'pinia'
 import api from '../api/axios'
+import { isQueuedWrite } from '../utils/queuedWrite'
 
 export type BatchAction = 'delete' | 'activate' | 'deactivate' | 'update'
 
@@ -11,6 +12,7 @@ export interface BatchActionResult {
   count: number
   errors?: Array<{ id: number; error: string }>
   message: string
+  queued?: boolean
 }
 
 export const useBatchActionsStore = defineStore('batchActions', {
@@ -146,6 +148,10 @@ export const useBatchActionsStore = defineStore('batchActions', {
           message: response.data.message,
         }
       } catch (e: any) {
+        if (isQueuedWrite(e)) {
+          this.clearSelection(entityType)
+          return { success: true, queued: true, count: 0, message: e.message }
+        }
         this.error = e.response?.data?.error || e.message
         return {
           success: false,
@@ -180,6 +186,7 @@ export const useBatchActionsStore = defineStore('batchActions', {
           message: response.data.message,
         }
       } catch (e: any) {
+        if (isQueuedWrite(e)) return { success: true, queued: true, count: 0, message: e.message }
         this.error = e.response?.data?.error || e.message
         return {
           success: false,
@@ -214,6 +221,7 @@ export const useBatchActionsStore = defineStore('batchActions', {
           message: response.data.message,
         }
       } catch (e: any) {
+        if (isQueuedWrite(e)) return { success: true, queued: true, count: 0, message: e.message }
         this.error = e.response?.data?.error || e.message
         return {
           success: false,
@@ -248,6 +256,7 @@ export const useBatchActionsStore = defineStore('batchActions', {
           message: response.data.message,
         }
       } catch (e: any) {
+        if (isQueuedWrite(e)) return { success: true, queued: true, count: 0, message: e.message }
         this.error = e.response?.data?.error || e.message
         return {
           success: false,

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../../../shared/api/axios'
 import type { BankAccount, CreateBankAccount, UpdateBankAccount } from '../types'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useBankAccountsStore = defineStore('bankAccounts', () => {
   const bankAccounts = ref<BankAccount[]>([])
@@ -38,6 +39,7 @@ export const useBankAccountsStore = defineStore('bankAccounts', () => {
       bankAccounts.value.push(response.data)
       return response.data
     } catch (err: any) {
+      if (isQueuedWrite(err)) throw err
       error.value = err.response?.data?.detail || 'Failed to create bank account'
       console.error('Error creating bank account:', err)
       throw err
@@ -57,6 +59,7 @@ export const useBankAccountsStore = defineStore('bankAccounts', () => {
       }
       return response.data
     } catch (err: any) {
+      if (isQueuedWrite(err)) throw err
       error.value = err.response?.data?.detail || 'Failed to update bank account'
       console.error('Error updating bank account:', err)
       throw err
@@ -75,6 +78,7 @@ export const useBankAccountsStore = defineStore('bankAccounts', () => {
         bankAccounts.value.splice(index, 1)
       }
     } catch (err: any) {
+      if (isQueuedWrite(err)) throw err
       error.value = err.response?.data?.detail || 'Failed to delete bank account'
       console.error('Error deleting bank account:', err)
       throw err

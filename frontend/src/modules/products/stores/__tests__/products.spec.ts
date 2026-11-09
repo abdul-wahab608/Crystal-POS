@@ -21,7 +21,7 @@ describe('Products Store', () => {
 
   it('fetches products successfully', async () => {
     const mockProducts = [
-      { id: 1, name: 'Product 1', unit: 'BAG', unit_price: 10, quantity: 5, available_stock: 5, created_at: '2023-01-01', last_updated: '2023-01-01' }
+      { id: 1, name: 'Product 1', unit: 'BAG', cop: 10, quantity: 5, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' }
     ]
     
     vi.mocked(api.get).mockResolvedValue({ data: mockProducts })
@@ -47,10 +47,10 @@ describe('Products Store', () => {
 
   it('creates product successfully', async () => {
     const newProduct = { name: 'New Product', unit: 'BAG' as const, cop: 15, quantity: 10 }
-    const createdProduct = { id: 2, ...newProduct, available_stock: 10, created_at: '2023-01-01', last_updated: '2023-01-01' }
+    const createdProduct = { id: 2, ...newProduct, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' }
     
     const store = useProductsStore()
-    store.products = [{ id: 1, name: 'Existing', unit: 'BAG', cop: 10, quantity: 5, available_stock: 5, created_at: '2023-01-01', last_updated: '2023-01-01' }]
+    store.products = [{ id: 1, name: 'Existing', unit: 'BAG', cop: 10, quantity: 5, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' }]
     
     vi.mocked(api.post).mockResolvedValue({ data: createdProduct })
     
@@ -61,10 +61,10 @@ describe('Products Store', () => {
   })
 
   it('updates product successfully', async () => {
-    const updatedProduct = { id: 1, name: 'Updated', unit: 'BAG', cop: 20, quantity: 10, available_stock: 10, created_at: '2023-01-01', last_updated: '2023-01-01' }
+    const updatedProduct = { id: 1, name: 'Updated', unit: 'BAG', cop: 20, quantity: 10, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' }
     
     const store = useProductsStore()
-    store.products = [{ id: 1, name: 'Original', unit: 'BAG', cop: 10, quantity: 5, available_stock: 5, created_at: '2023-01-01', last_updated: '2023-01-01' }]
+    store.products = [{ id: 1, name: 'Original', unit: 'BAG', cop: 10, quantity: 5, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' }]
     
     vi.mocked(api.patch).mockResolvedValue({ data: updatedProduct })
     
@@ -76,8 +76,8 @@ describe('Products Store', () => {
   it('deletes product successfully', async () => {
     const store = useProductsStore()
     store.products = [
-      { id: 1, name: 'Product 1', unit: 'BAG', cop: 10, quantity: 5, available_stock: 5, created_at: '2023-01-01', last_updated: '2023-01-01' },
-      { id: 2, name: 'Product 2', unit: 'KILO', cop: 20, quantity: 10, available_stock: 10, created_at: '2023-01-01', last_updated: '2023-01-01' }
+      { id: 1, name: 'Product 1', unit: 'BAG', cop: 10, quantity: 5, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' },
+      { id: 2, name: 'Product 2', unit: 'KILO', cop: 20, quantity: 10, product_type: 'MANUFACTURED', size_range: null, variants: [], created_at: '2023-01-01', last_updated: '2023-01-01' }
     ]
     
     vi.mocked(api.delete).mockResolvedValue({})

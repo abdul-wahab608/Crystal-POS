@@ -284,6 +284,8 @@ import ColorManager from '../components/ColorManager.vue'
 import { useSizeRangeStore } from '../stores/sizeRange'
 import { useColorStore } from '../stores/color'
 import { useProductVariantStore } from '../stores/productVariant'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import offlineManager from '../../../shared/utils/offlineManager'
 
 const store = useProductsStore()
 const authStore = useAuthStore()
@@ -372,7 +374,7 @@ function editProduct(product: any) {
 
 function deleteProduct(id: number) {
   if (confirm('Are you sure you want to delete this product?')) {
-    store.deleteProduct(id)
+    acceptQueued(() => store.deleteProduct(id))
   }
 }
 
@@ -380,7 +382,7 @@ async function saveProduct() {
   try {
     let productId: number | null = null
     if (showEditForm.value && editingProduct.value) {
-      await store.updateProduct(editingProduct.value.id, form.value)
+      await acceptQueued(() => store.updateProduct(editingProduct.value.id, form.value))
       productId = editingProduct.value.id
     } else {
       const existingProduct = products.value.find(
@@ -388,14 +390,22 @@ async function saveProduct() {
       )
       if (existingProduct) {
         const newQuantity = Number(existingProduct.quantity) + Number(form.value.quantity)
-        await store.updateProduct(existingProduct.id, {
+        await acceptQueued(() => store.updateProduct(existingProduct.id, {
           ...existingProduct,
+          cop: Number(existingProduct.cop),
           quantity: newQuantity
-        })
+        }))
         productId = existingProduct.id
       } else {
-        const created = await store.createProduct({ ...form.value, cop: 0 })
-        productId = created.id
+        const hasVariants = form.value.variants.some(v => v.size_range && v.color && v.quantity_dozens)
+        if (hasVariants && !offlineManager.getStatus().online) {
+          throw new Error("A new product with size/color variants can only be saved while the server is reachable.")
+        }
+        const created = await acceptQueued(() => store.createProduct({ ...form.value, cop: 0 }))
+        if (!created && hasVariants) {
+          throw new Error("Product was saved offline without its variants. Add the variants after it syncs.")
+        }
+        productId = created?.id ?? null
       }
     }
     // Save variants (skip rows already persisted and incomplete rows)

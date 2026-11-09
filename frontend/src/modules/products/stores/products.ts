@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import api from '@/shared/api/axios'
 import type { Product, CreateProductRequest, UpdateProductRequest } from '../types'
+import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useProductsStore = defineStore('products', {
   state: () => ({
@@ -26,7 +27,7 @@ export const useProductsStore = defineStore('products', {
     async createProduct(payload: CreateProductRequest) {
       try {
         // Check for existing product with same name, unit, and cop
-        const existing = this.products.find(p => p.name === payload.name && p.unit === payload.unit && p.cop === payload.cop)
+        const existing = this.products.find(p => p.name === payload.name && p.unit === payload.unit && Number(p.cop) === payload.cop)
         if (existing) {
           // Update the quantity (replace, not increment)
           await this.updateProduct(existing.id, { ...payload })
@@ -40,6 +41,7 @@ export const useProductsStore = defineStore('products', {
         this.error = null
         return res.data
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.response?.data || e.message
         throw e
       }
@@ -57,6 +59,7 @@ export const useProductsStore = defineStore('products', {
         if (idx !== -1) this.products[idx] = res.data
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }
@@ -73,6 +76,7 @@ export const useProductsStore = defineStore('products', {
         this.products = this.products.filter(p => p.id !== id)
         this.error = null
       } catch (e: any) {
+        if (isQueuedWrite(e)) throw e
         this.error = e.response?.data?.message || e.message
         throw e
       }

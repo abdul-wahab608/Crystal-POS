@@ -12,7 +12,7 @@
 | Charts | ApexCharts / vue3-apexcharts |
 | Excel | openpyxl (backend) / xlsx + file-saver (frontend) |
 | DB | SQLite (default) |
-| Desktop | None — Electron packaging was removed; the "desktop app" is Django serving the built Vue app + API from `localhost:8010` (**temporarily moved off 8000** — see "Dev port temporarily 8010" gotcha below), opened in the OS default browser via an Inno Setup installer |
+| Desktop | No Electron. Django serves the built Vue app and the API from `localhost:8010` on the same machine (same origin, so no CORS needed). Shipped as an Inno Setup installer that bundles its own Python runtime (see "Installer is fully offline" gotcha) |
 | Auth | JWT — token in `localStorage['auth_token']`, header `Authorization: Bearer <token>` |
 
 ## Repo Layout
@@ -47,7 +47,7 @@ Crystal/
 
 ## API Endpoint Map
 
-Base URL: `http://127.0.0.1:8010/api` (temporarily 8010, not the usual 8000 — see gotcha below)
+Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" gotcha)
 
 | Prefix | Django app | ViewSet/Router |
 |--------|-----------|----------------|
@@ -176,7 +176,8 @@ Each module lives at `frontend/src/modules/<name>/` with this shape:
 
 | Path | Purpose |
 |------|---------|
-| `api/axios.ts` | Axios instance — base URL 8010 (temporarily, see gotcha below), JWT header, offline queue, 30-min IndexedDB cache for GETs |
+| `shared/api/baseUrl.ts` | `API_BASE_URL` = `http://localhost:8010/api` (separate file to avoid an axios ↔ offlineManager import cycle) |
+| `api/axios.ts` | Axios instance. GET responses cached in IndexedDB; served from cache when the backend is unreachable. Write calls with no response are queued via offlineManager and reject with `QueuedWriteError` |
 | `stores/auth.ts` | Pinia auth store — login/logout, token in localStorage |
 | `stores/batchActions.ts` | Batch select + delete across list views |
 | `stores/export.ts` | Excel/CSV export logic |
@@ -187,10 +188,10 @@ Each module lives at `frontend/src/modules/<name>/` with this shape:
 | `components/SelectAllCheckbox.vue` | Selects all visible rows; `allIds` prop — avoid passing fresh array on every render |
 | `components/BatchActionsToolbar.vue` | Toolbar shown when rows are selected |
 | `components/ExportButton.vue` | Triggers export store |
-| `utils/offlineManager.ts` | Online/offline detection + sync queue |
+| `utils/offlineManager.ts` | Reachability via `GET /api/health/` (every 10 s and after any no-response error); FIFO write queue persisted in IndexedDB (`syncQueue` store), replayed on reconnect; failed items (4xx / exhausted 5xx) shown in OfflineSettings for retry/discard |
 | `utils/indexedDBManager.ts` | IndexedDB cache for offline GET responses |
 | `constants/importFields.ts` | IMPORT_CONFIGS — field metadata for import wizard (mirrors backend import_fields) |
-| `composables/useOfflineData.ts` | Composable for offline-aware data fetching |
+| `utils/queuedWrite.ts` | `acceptQueued(write)` runs a write and swallows only `QueuedWriteError`; `isQueuedWrite(e)` guard. Store actions rethrow queued errors so views close the form without showing a failure |
 
 ## Backend Shared Infrastructure (backend/core/)
 
@@ -234,7 +235,7 @@ Neither `Vendor` nor `Customer` has an `email` field. Frontend search filters mu
 All ViewSets using bulk import inherit `download_template`, `bulk_import`, `get_import_fields` from `core.mixins.BulkImportMixin`. Do **not** re-implement these `@action`s on individual ViewSets.
 
 ### Router mode
-`router/index.ts` still branches on `navigator.userAgent.includes('electron')` (hash vs web history) and `axios.ts`/`errorLogger.ts` still check `window.electronAPI`. This is dead code left over from the removed Electron packaging — `window.electronAPI` never exists now, so these branches always take the browser/web-history path. Harmless but stale; do not treat it as evidence Electron is still in use.
+`router/index.ts` always uses web history. Electron was removed; `window.electronAPI` no longer exists anywhere.
 
 ### Installer is fully offline / self-contained (fixed 2026-08-06)
 The installer bundles a python.org "embeddable" Python distribution with every `backend/requirements.txt` dependency pre-installed into its own `Lib\site-packages`, staged at *build time* by `installer/build-python-runtime.ps1` (developer machine, online) and shipped via `[Files]` into `{app}\python\` (see `CrystalPOS.iss`). `setup.ps1` has no Python-detection/venv/pip-install steps anymore — do not reintroduce any of those; the whole point is zero network access and no system Python requirement at install time. Two non-obvious things that make this actually work:
@@ -244,19 +245,22 @@ The installer bundles a python.org "embeddable" Python distribution with every `
 ### Auth guard
 `router/index.ts` beforeEach: checks `localStorage['auth_token']`. Redirect to `/login` if absent.
 
-### Axios offline behaviour
-GET responses cached in IndexedDB for 30 min. POST/PUT/DELETE added to sync queue when offline. On 401, token removed and redirect to `/login`.
+### Offline behaviour
+- Reachability is probed against `/api/health/`, not `navigator.onLine` (which only reflects network adapters).
+- GET fallback: the last cached response for the exact method + URL (including query params) is served when the backend is unreachable. No TTL.
+- Writes when unreachable: queued in IndexedDB and the call rejects with `QueuedWriteError`. Every write call site must go through `acceptQueued()` or rethrow queued errors; never show a red error for a queued save and never re-submit it (duplicate sales/payments).
+- Replay: 2xx removes the item; 4xx moves it to failed (visible in OfflineSettings, discard button); 5xx retries 3 times then fails; network error or 401 stops replay and keeps the item.
+- Auth URLs and FormData uploads are never queued.
+- Known gap: creating a NEW product with size/color variants is refused while offline (variants need the product id).
 
 ### export_fields on ViewSets
 Do not define `export_fields` twice in the same ViewSet class body — Python silently uses the last definition.
 
-### Sales unit_price string-multiplication bug (found 2026-08-09, NOT fixed — out of scope when found)
+### Sales unit_price string-multiplication bug (found 2026-08-09, FIXED in commit 1cdca86)
 `sales/serializers.py::SaleSerializer.create()` does `subtotal=unit_price * quantity_dozens` where `unit_price` comes straight from the request's `items` list (`serializers.ListField`, not a nested serializer with type coercion). If `unit_price` ever arrives as a JSON string (e.g. `"100.00"` — the same DecimalField-as-string shape DRF itself produces everywhere else, and plausible from a future import/API caller), Python does **string repetition** instead of multiplication (`'100.00' * 10` → garbage), then crashes with `django.core.exceptions.ValidationError: value must be a decimal number` writing `SaleItem.subtotal`. The existing `SalesForm.vue` happens to send `unit_price` as a JS number so this doesn't fire in normal UI use today — found while seeding test data via a raw API call with a quoted decimal. Fix would be `Decimal(str(item_data['unit_price']))` before multiplying, matching the pattern already used in `purchases/serializers.py`.
 
-### Dev port temporarily 8010, not 8000 (since 2026-08-17)
-This dev machine has an unrelated Docker Compose project (`be-api-1`, plus `fe-web-1`/`be-worker-1`/`be-postgres-1`/`be-redis-1`) that also publishes port 8000, and fighting it caused real collateral damage (see incident below). Rather than keep contesting port 8000, the whole app was moved to **8010** everywhere it's hardcoded: `frontend/src/shared/api/axios.ts` (both the Electron and browser branches), `installer/start-app.ps1`, `installer/start-backend.ps1` (`$Port` default), `installer/start-frontend.ps1` (`$BackendUrl` default), and both READMEs. `manage.py runserver` must be started with `8010` explicitly (see Dev Commands below) — there is no code default anymore, the port is only baked into the scripts above. **This is provisional and may be reverted back to 8000** — if so, revert all the files just listed together, don't change axios.ts alone (the installed app's Django server and the frontend's hardcoded API base URL must always agree on the same port).
-
-**Incident that prompted this (2026-08-09)**: `docker stop be-api-1` isn't durable — its `restart: unless-stopped` policy brings it back if Docker Desktop's backend restarts for any reason. Worse, **`localhost` resolves differently by process**: Vite's dev server binds only `[::1]:5173` (IPv6) by default, and the container's IPv6-loopback forwarding (`wslrelay.exe` on `[::1]:8000`) won over a plain `manage.py runserver 8000` (IPv4-only bind) whenever a browser resolved `localhost` to `::1` first — so `curl http://localhost:8000/...` and a Chrome-driven request to the same URL could silently hit two different backends. While attempting to clean up test processes, a `netstat`-scanning `taskkill` loop also killed `com.docker.backend.exe` (it was wildcard-bound to `0.0.0.0:8000`, so it matched a naive grep for `:8000` too) — this took down **every** container on the machine, not just `be-api-1`, and Docker Desktop got stuck mid-restart for an extended period afterward. **Lesson: never bulk-`taskkill` by scanning `netstat` output for a port number** — match by PID you already know, not by re-deriving PIDs from a port grep.
+### Port 8010 is final
+The backend, the frontend API base URL (`shared/api/baseUrl.ts`) and the installer scripts all use `8010`. Change them together if the port ever changes. Never bulk-kill processes by scanning `netstat` output for a port number: a wildcard-bound system service (for example Docker Desktop) matches the same grep and gets killed too.
 
 ### Full-app browser verification pass (2026-08-06) — bug map
 Every nav route + CRUD flow was driven end-to-end against the offline-installed app (not dev servers). Nodes below are `file → symptom → root cause`; all fixed same session.
@@ -321,7 +325,7 @@ Dead code, never imported anywhere (confirmed via grep, don't trust these as cur
 ## Dev Commands
 
 ```bash
-# Backend (port is temporarily 8010, not the default 8000 — see "Dev port temporarily 8010" gotcha)
+# Backend (port 8010 is final — see "Port 8010 is final" gotcha)
 cd backend && python manage.py runserver 8010
 
 # Frontend (bind IPv4 explicitly — Vite defaults to IPv6-only loopback, see gotcha above)
@@ -336,4 +340,4 @@ cd frontend && npm run test:unit
 
 ## Branch Convention
 - `master` — main branch
-- `desktop-app` — current feature branch (Inno Setup installer; Electron packaging was removed, see Router mode gotcha)
+- `desktop-app` — current feature branch (Inno Setup installer; Electron was removed, see Router mode gotcha)

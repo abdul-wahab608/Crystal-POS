@@ -211,6 +211,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUsersStore } from '../stores/users'
 import type { User, CreateUserRequest } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const store = useUsersStore()
 const searchTerm = ref('')
@@ -263,7 +264,7 @@ function editUser(user: User) {
 
 function deleteUser(id: number) {
   if (confirm('Are you sure you want to delete this user?')) {
-    store.deleteUser(id)
+    acceptQueued(() => store.deleteUser(id))
   }
 }
 
@@ -271,9 +272,9 @@ async function saveUser() {
   try {
     if (showEditForm.value) {
       const updateData = { ...form.value }
-      await store.updateUser(editingUser.value!.id, updateData)
+      await acceptQueued(() => store.updateUser(editingUser.value!.id, updateData))
     } else {
-      await store.createUser(form.value)
+      await acceptQueued(() => store.createUser(form.value))
     }
     closeForm()
   } catch (error) {

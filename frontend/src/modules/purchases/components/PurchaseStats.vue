@@ -17,5 +17,5 @@
 import { computed } from 'vue'
 import type { Purchase } from '../types'
 const props = defineProps<{ purchases: Purchase[] }>()
-const totalSpent = computed(() => props.purchases.reduce((sum, p) => sum + p.total, 0))
+const totalSpent = computed(() => props.purchases.reduce((sum, p) => sum + Number(p.total_amount), 0))
 </script> 

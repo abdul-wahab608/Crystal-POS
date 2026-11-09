@@ -69,6 +69,7 @@
 import { ref, computed } from 'vue'
 import { useRawMaterialsStore } from '../stores/raw_materials'
 import type { RawMaterial, CreateRawMaterialUsage } from '../types'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
 const props = defineProps<{
   material: RawMaterial
@@ -90,7 +91,7 @@ const form = ref<CreateRawMaterialUsage>({
 })
 
 const quantityError = computed(() => {
-  return form.value.quantity_used > props.material.available_stock
+  return form.value.quantity_used > Number(props.material.available_stock)
 })
 
 async function handleSubmit() {
@@ -98,7 +99,7 @@ async function handleSubmit() {
   
   loading.value = true
   try {
-    await store.createUsage(form.value)
+    await acceptQueued(() => store.createUsage(form.value))
     emit('success')
   } catch (error) {
     // Handle error silently
