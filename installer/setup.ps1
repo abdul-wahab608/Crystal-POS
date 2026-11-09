@@ -349,10 +349,7 @@ except Exception as e:
 "@
 
     $TempScript = Join-Path $BackendDir "create_superuser_temp.py"
-    $AdminChars = ([char[]]'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789')
-    $AdminBytes = New-Object byte[] 14
-    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($AdminBytes)
-    $Script:AdminPassword = -join ($AdminBytes | ForEach-Object { $AdminChars[$_ % $AdminChars.Count] })
+    $Script:AdminPassword = 'admin123'
     $env:CRYSTAL_ADMIN_PASSWORD = $Script:AdminPassword
     Write-Log "Creating temporary script: $TempScript"
     
@@ -427,7 +424,7 @@ if ($Script:SetupSuccess) {
     Write-Log "=========================================================="
     Write-Log ""
     if ($Script:AdminPassword) {
-        Write-Log "First login: username admin, password shown once in the setup dialog. Change it after first login."
+        Write-Log "Default login: admin / admin123. Change it after first login."
     }
     Write-Log ""
     Write-Log "To start the application:"
@@ -437,7 +434,7 @@ if ($Script:SetupSuccess) {
     Write-Log "Log files saved to: $LogDir"
     Write-Log "=========================================================="
     
-    $LoginNote = if ($Script:AdminPassword) { "`n`nFirst login:`nUsername: admin`nPassword: $($Script:AdminPassword)`n`nWrite this password down now. It is not shown again." } else { "" }
+    $LoginNote = if ($Script:AdminPassword) { "`n`nDefault login:`nUsername: admin`nPassword: admin123`n`nChange it after first login." } else { "" }
     Show-SuccessDialog -Message "Crystal POS has been installed successfully!$LoginNote`n`nUse the desktop shortcut to start the application."
     
     exit 0

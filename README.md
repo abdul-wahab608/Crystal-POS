@@ -179,7 +179,7 @@ Export detailed Excel reports:
 
 4. **Login**: 
    - **Username**: `admin`
-   - **Password**: the random password shown once in the setup dialog (change it after first login)
+   - **Password**: `admin123` (change it after first login)
 
 ### Manual Development Setup
 
@@ -244,7 +244,7 @@ After installation or starting the servers:
 
 | Role | Username | Password |
 |------|----------|----------|
-| Admin | admin | set at install (shown once), or via `manage.py reset_admin_password --password <new>` |
+| Admin | admin | admin123 (change after first login) |
 
 ### Quick Start Guide
 
@@ -314,7 +314,7 @@ Crystal/
 ```bash
 # Login
 POST /api/users/auth/login/
-Body: {"username": "admin", "password": "<your admin password>"}
+Body: {"username": "admin", "password": "admin123"}
 Response: {"token": "...", "user": {...}}
 
 # Get current user
@@ -421,7 +421,7 @@ dist/installer/CrystalPOS-Setup-1.0.0.exe
 
 1. Copies backend, frontend and a bundled Python runtime to Program Files
 2. Runs Django migrations
-3. Creates the admin user with a random first-login password, shown once in the setup dialog
+3. Creates admin user (admin/admin123)
 4. Creates desktop and Start Menu shortcuts
 
 ---
