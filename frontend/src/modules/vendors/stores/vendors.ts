@@ -1,13 +1,11 @@
 import { defineStore } from 'pinia'
-import type { Vendor, CreateVendorRequest, UpdateVendorRequest } from '../types'
+import type { Vendor, VendorFormPayload, VendorPayment, VendorPaymentPayload, VendorTransaction } from '../types'
 import api from '../../../shared/api/axios'
-import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useVendorsStore = defineStore('vendors', {
   state: () => ({
     vendors: [] as Vendor[],
     loading: false,
-    error: null as string | null,
   }),
   actions: {
     async fetchVendors() {
@@ -15,46 +13,33 @@ export const useVendorsStore = defineStore('vendors', {
       try {
         const res = await api.get<Vendor[]>('/vendors/')
         this.vendors = res.data
-        this.error = null
-      } catch (e: any) {
-        this.error = e.response?.data?.message || e.message
       } finally {
         this.loading = false
       }
     },
-    async createVendor(payload: CreateVendorRequest) {
-      try {
-        const res = await api.post<Vendor>('/vendors/', payload)
-        this.vendors.push(res.data)
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
+    async createVendor(payload: VendorFormPayload) {
+      await api.post('/vendors/', payload)
+      await this.fetchVendors()
     },
-    async updateVendor(id: number, payload: UpdateVendorRequest) {
-      try {
-        const res = await api.patch<Vendor>(`/vendors/${id}/`, payload)
-        const idx = this.vendors.findIndex(v => v.id === id)
-        if (idx !== -1) this.vendors[idx] = res.data
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
+    async updateVendor(id: number, payload: Partial<VendorFormPayload>) {
+      await api.patch(`/vendors/${id}/`, payload)
+      await this.fetchVendors()
     },
     async deleteVendor(id: number) {
-      try {
-        await api.delete(`/vendors/${id}/`)
-        this.vendors = this.vendors.filter(v => v.id !== id)
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
-    }
-  }
-}) 
+      await api.delete(`/vendors/${id}/`)
+      await this.fetchVendors()
+    },
+    async fetchLedger(vendorId: number): Promise<VendorTransaction[]> {
+      const res = await api.get<VendorTransaction[]>('/vendors/vendor-transactions/', { params: { vendor: vendorId } })
+      return res.data
+    },
+    async fetchVendorPayments(vendorId: number): Promise<VendorPayment[]> {
+      const res = await api.get<VendorPayment[]>('/payments/by_vendor/', { params: { vendor_id: vendorId } })
+      return res.data
+    },
+    async recordPayment(payload: VendorPaymentPayload) {
+      await api.post('/payments/', { ...payload, payment_type: 'OUTGOING' })
+      await this.fetchVendors()
+    },
+  },
+})

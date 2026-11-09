@@ -41,7 +41,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="account in store.bankAccounts" :key="account.id" class="table-row">
+          <tr v-for="account in pageItems" :key="account.id" class="table-row">
             <td>{{ account.name }}</td>
             <td>{{ account.account_number }}</td>
             <td>{{ account.bank_name }}</td>
@@ -72,7 +72,16 @@
           </tr>
         </tbody>
       </table>
-      
+      <PaginationBar
+        v-if="store.bankAccounts.length && !store.loading"
+        :page="page"
+        :totalPages="totalPages"
+        :total="total"
+        :pageSize="pageSize"
+        @update:page="goTo"
+        @update:pageSize="setPageSize"
+      />
+
       <div v-if="store.bankAccounts.length === 0 && !store.loading" class="empty-state">
         <p>No bank accounts found.</p>
         <button class="btn-primary" @click="showAddForm = true">Add First Account</button>
@@ -188,6 +197,7 @@
             </label>
           </div>
           
+          <p v-if="formError" class="form-error">{{ formError }}</p>
           <div class="form-actions">
             <button type="button" @click="closeModal" class="btn-secondary">Cancel</button>
             <button type="submit" class="btn-primary" :disabled="store.loading">
@@ -201,12 +211,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useBankAccountsStore } from '../stores/bank_accounts'
 import type { BankAccount, CreateBankAccount } from '../types'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
 
 const store = useBankAccountsStore()
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize } = usePagination(computed(() => store.bankAccounts))
 
 // Modal states
 const showAddForm = ref(false)
@@ -215,6 +228,7 @@ const editingAccount = ref<BankAccount | null>(null)
 // Bank dropdown states
 const showBankDropdown = ref(false)
 const bankSearchQuery = ref('')
+const formError = ref('')
 
 // Pakistani Banks List
 const pakistaniBanks = [
@@ -278,18 +292,34 @@ function selectBank(bank: string) {
   }
 }
 
-// Close dropdown when clicking outside
+function onDocumentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.bank-select-wrapper')) {
+    showBankDropdown.value = false
+  }
+}
+
+function errorMessage(error: any): string {
+  const data = error?.response?.data
+  if (!data) return error?.message || 'Request failed'
+  if (typeof data === 'string') return data
+  if (data.detail) return String(data.detail)
+  return Object.entries(data)
+    .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(' ') : msgs}`)
+    .join('\n')
+}
+
 onMounted(() => {
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('.bank-select-wrapper')) {
-      showBankDropdown.value = false
-    }
-  })
+  document.addEventListener('click', onDocumentClick)
   store.fetchBankAccounts()
 })
 
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
+})
+
 function editAccount(account: BankAccount) {
+  formError.value = ''
   editingAccount.value = account
   form.value = {
     name: account.name,
@@ -303,14 +333,19 @@ function editAccount(account: BankAccount) {
 }
 
 async function handleSubmit() {
+  formError.value = ''
+  const submitData = { ...form.value }
+  if (form.value.bank_name === 'Other' && form.value.other_bank_name) {
+    submitData.bank_name = form.value.other_bank_name
+  }
+  delete submitData.other_bank_name
+
+  if (!submitData.bank_name) {
+    formError.value = 'Pick a bank from the list.'
+    return
+  }
+
   try {
-    // Use other_bank_name if 'Other' is selected
-    const submitData = { ...form.value }
-    if (form.value.bank_name === 'Other' && form.value.other_bank_name) {
-      submitData.bank_name = form.value.other_bank_name
-    }
-    delete submitData.other_bank_name
-    
     if (editingAccount.value) {
       await acceptQueued(() => store.updateBankAccount(editingAccount.value!.id, submitData))
     } else {
@@ -319,7 +354,7 @@ async function handleSubmit() {
     closeModal()
     resetForm()
   } catch (error) {
-    console.error('Error saving bank account:', error)
+    formError.value = errorMessage(error)
   }
 }
 
@@ -338,6 +373,7 @@ async function toggleStatus(id: number) {
 function closeModal() {
   showAddForm.value = false
   editingAccount.value = null
+  formError.value = ''
   resetForm()
 }
 
@@ -688,5 +724,10 @@ onMounted(() => {
 
 .btn-secondary:hover {
   background: #d1d5db;
+}
+.form-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
 }
 </style> 

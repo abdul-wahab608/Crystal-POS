@@ -1,288 +1,103 @@
 <template>
-  <div class="form-container">
-    <div class="form-header">
-      <h2>{{ isEditing ? 'Edit Raw Material' : 'Add Raw Material' }}</h2>
-      <button class="close-btn" @click="$emit('cancel')">×</button>
-    </div>
-    
-    <form @submit.prevent="handleSubmit" class="form">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="name">Name *</label>
-          <input 
-            id="name"
-            v-model="form.name" 
-            type="text" 
-            required 
-            class="form-input"
-            placeholder="Enter material name"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label for="unit">Unit *</label>
-          <select id="unit" v-model="form.unit" required class="form-input">
-            <option value="">Select Unit</option>
-            <option value="BAG">Bag</option>
-            <option value="KILO">Kilo</option>
-            <option value="PCS">Pieces</option>
-            <option value="KG">Kilograms</option>
-            <option value="L">Liters</option>
-            <option value="M">Meters</option>
-            <option value="BOX">Box</option>
-            <option value="PACK">Pack</option>
-            <option value="UNIT">Unit</option>
-            <option value="GRAM">Grams</option>
-            <option value="TON">Tons</option>
-            <option value="GALLON">Gallons</option>
-            <option value="FOOT">Feet</option>
-            <option value="YARD">Yards</option>
-            <option value="CM">Centimeters</option>
-            <option value="MM">Millimeters</option>
-            <option value="INCH">Inches</option>
-            <option value="POUND">Pounds</option>
-            <option value="OUNCE">Ounces</option>
-            <option value="CUP">Cups</option>
-            <option value="TABLESPOON">Tablespoons</option>
-            <option value="TEASPOON">Teaspoons</option>
-          </select>
-        </div>
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group">
-          <label for="quantity">Initial Quantity</label>
-          <input 
-            id="quantity"
-            v-model.number="form.quantity" 
-            type="number" 
-            step="0.01"
-            min="0"
-            class="form-input"
-            placeholder="0"
-          />
-          <small class="help-text">Optional: Set initial stock quantity</small>
-        </div>
-        
-        <div class="form-group">
-          <label for="reorder_level">Reorder Level *</label>
-          <input 
-            id="reorder_level"
-            v-model.number="form.reorder_level" 
-            type="number" 
-            step="0.01"
-            min="0"
-            required 
-            class="form-input"
-            placeholder="Minimum stock level"
-          />
-          <small class="help-text">Alert when stock falls below this level</small>
-        </div>
-      </div>
-      
+  <div class="modal-card">
+    <h2 class="modal-title">{{ material ? 'Edit Raw Material' : 'Add Raw Material' }}</h2>
+    <form @submit.prevent="submit">
       <div class="form-group">
-        <label for="preferred_vendor">Preferred Vendor (Optional)</label>
-        <select 
-          id="preferred_vendor"
-          v-model="selectedVendor" 
-          class="form-input"
-        >
-          <option value="">No preferred vendor</option>
-          <option 
-            v-for="vendor in vendorsStore.vendors.filter(v => v.is_active)" 
-            :key="vendor.id" 
-            :value="vendor.name"
-          >
-            {{ vendor.name }}
-          </option>
-        </select>
-        <small class="help-text">Select a preferred vendor for this material</small>
+        <label for="rm-name">Name *</label>
+        <input id="rm-name" v-model="form.name" type="text" class="form-input" required />
       </div>
-      
+      <div class="form-group">
+        <label for="rm-unit">Unit *</label>
+        <SearchableSelect
+          id="rm-unit"
+          :modelValue="form.unit || null"
+          :options="unitOptions"
+          placeholder="Select a unit"
+          required
+          @update:modelValue="value => form.unit = value ? String(value) : ''"
+        />
+      </div>
+      <div class="form-group">
+        <label for="rm-reorder">Reorder level ({{ form.unit || 'unit' }})</label>
+        <input id="rm-reorder" v-model.number="form.reorder_level" type="number" min="0" step="0.01" class="form-input" />
+      </div>
+      <div v-if="!material" class="form-group">
+        <label for="rm-opening">Opening quantity ({{ form.unit || 'unit' }})</label>
+        <input id="rm-opening" v-model.number="form.quantity" type="number" min="0" step="0.01" class="form-input" />
+      </div>
+      <p v-if="error" class="form-error">{{ error }}</p>
       <div class="form-actions">
-        <button type="button" @click="$emit('cancel')" class="btn-secondary">Cancel</button>
-        <button type="submit" class="btn-primary" :disabled="loading">
-          {{ loading ? 'Saving...' : (isEditing ? 'Update' : 'Create') }}
-        </button>
+        <button type="button" class="btn-secondary" @click="$emit('cancel')">Cancel</button>
+        <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
       </div>
     </form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
+import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
+import { useUnitsStore } from '../../../shared/stores/units'
 import { useRawMaterialsStore } from '../stores/raw_materials'
-import { useVendorsStore } from '@/modules/vendors/stores/vendors'
-import type { RawMaterial, CreateRawMaterial } from '../types'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import { errorMessageOf } from '../utils/errorMessage'
+import type { RawMaterial } from '../types'
 
-const props = defineProps<{ material?: RawMaterial }>()
+const props = defineProps<{ material?: RawMaterial | null }>()
+const emit = defineEmits<{ success: []; cancel: [] }>()
 
-const emit = defineEmits<{
-  success: []
-  cancel: []
-}>()
+const unitsStore = useUnitsStore()
+const materialsStore = useRawMaterialsStore()
 
-const store = useRawMaterialsStore()
-const vendorsStore = useVendorsStore()
-const loading = ref(false)
-const selectedVendor = ref('')
-
-const isEditing = computed(() => !!props.material)
-
-const form = ref<CreateRawMaterial>({
-  name: '',
-  unit: '',
+const form = reactive({
+  name: props.material?.name ?? '',
+  unit: props.material?.unit ?? '',
+  reorder_level: Number(props.material?.reorder_level ?? 0),
   quantity: 0,
-  reorder_level: 0
 })
+const saving = ref(false)
+const error = ref('')
+
+const unitOptions = computed(() => unitsStore.unitOptions)
 
 onMounted(() => {
-  // Fetch vendors for dropdown
-  if (vendorsStore.vendors.length === 0) {
-    vendorsStore.fetchVendors()
-  }
-  
-  if (props.material) {
-    form.value = {
-      name: props.material.name,
-      unit: props.material.unit,
-      quantity: Number(props.material.quantity),
-      reorder_level: Number(props.material.reorder_level)
-    }
-  }
+  unitsStore.fetchUnits().catch(() => {
+    error.value = 'Could not load units.'
+  })
 })
 
-async function handleSubmit() {
-  loading.value = true
+async function submit() {
+  error.value = ''
+  if (!form.unit) {
+    error.value = 'Choose a unit.'
+    return
+  }
+  const payload = props.material
+    ? { name: form.name, unit: form.unit, reorder_level: form.reorder_level }
+    : { name: form.name, unit: form.unit, reorder_level: form.reorder_level, quantity: form.quantity }
+  saving.value = true
   try {
-    if (isEditing.value && props.material) {
-      await acceptQueued(() => store.updateMaterial(props.material!.id, form.value))
-    } else {
-      await acceptQueued(() => store.createMaterial(form.value))
-    }
+    await acceptQueued(() => (
+      props.material
+        ? materialsStore.updateMaterial(props.material.id, payload)
+        : materialsStore.createMaterial(payload)
+    ))
     emit('success')
-  } catch (error) {
-    // Handle error silently
+  } catch (e) {
+    error.value = errorMessageOf(e)
   } finally {
-    loading.value = false
+    saving.value = false
   }
 }
 </script>
 
 <style scoped>
-.form-container {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 600px;
-  margin: 1rem;
-}
-
-.form-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.form-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: #6b7280;
-  cursor: pointer;
-}
-
-.form {
-  padding: 1.5rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.help-text {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-top: 0.25rem;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.btn-primary:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #374151;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: #d1d5db;
-}
-</style> 
+.modal-card { background: white; border-radius: 0.5rem; padding: 1.5rem; width: min(440px, 92vw); }
+.modal-title { font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem; }
+.form-group { margin-bottom: 0.875rem; }
+.form-group label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; }
+.form-error { color: #b91c1c; font-size: 0.875rem; margin-bottom: 0.75rem; }
+.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.btn-primary:disabled { opacity: 0.6; }
+</style>

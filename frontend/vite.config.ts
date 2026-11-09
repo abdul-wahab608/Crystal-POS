@@ -21,11 +21,18 @@ export default defineConfig({
   },
   base: '/',
   build: {
+    chunkSizeWarningLimit: 600,
     outDir: 'dist',
     assetsDir: 'assets',
     rollupOptions: {
       output: {
-        manualChunks: undefined
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('apexcharts')) return 'charts'
+          if (id.includes('/xlsx/')) return 'xlsx'
+          if (id.includes('/vue/') || id.includes('/pinia/') || id.includes('vue-router') || id.includes('@vue/')) return 'vue-vendor'
+          return undefined
+        }
       }
     }
   }

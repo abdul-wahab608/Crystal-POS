@@ -26,12 +26,15 @@ class Customer(models.Model):
 class CustomerTransaction(models.Model):
     SALE = 'SALE'
     PAYMENT = 'PAYMENT'
+    REVERSAL = 'REVERSAL'
     TRANSACTION_TYPE_CHOICES = [
         (SALE, 'Sale'),
         (PAYMENT, 'Payment'),
+        (REVERSAL, 'Reversal'),
     ]
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='transactions')
     type = models.CharField(max_length=10, choices=TRANSACTION_TYPE_CHOICES)
+    reverses = models.CharField(max_length=10, blank=True, default='', choices=[(SALE, 'Sale'), (PAYMENT, 'Payment')])
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateTimeField(auto_now_add=True)
     reference = models.CharField(max_length=255, blank=True, null=True)

@@ -1,53 +1,56 @@
-export interface VendorProduct {
-  id?: number
-  vendor: number
-  vendor_name?: string
-  product_type: 'PRODUCT' | 'RAW_MATERIAL'
-  product?: number
-  raw_material?: number
-  item_name: string
-  item_unit: string
-  unit_price: number | string
-  minimum_order_quantity: number | string
-  lead_time_days: number
-  is_preferred: boolean
-  is_active: boolean
-  notes?: string
-  last_purchase_date?: string
-  last_purchase_price?: number | string
-  created_at?: string
-  updated_at?: string
-}
-
 export interface Vendor {
   id: number
   name: string
-  phone: string
-  address: string
-  city?: string
-  contact_person: string
-  balance: number | string
+  phone: string | null
+  address: string | null
+  city: string | null
+  contact_person: string | null
+  balance: string
   is_active: boolean
-  vendor_products?: VendorProduct[]
-  total_products_count?: number
   created_at: string
   updated_at: string
 }
 
-export interface CreateVendorRequest {
+export interface VendorFormPayload {
   name: string
   phone: string
   address: string
-  city?: string
+  city: string
   contact_person: string
   is_active: boolean
-  vendor_products?: any[]
 }
 
-export interface UpdateVendorRequest extends Partial<CreateVendorRequest> {}
+export interface VendorTransaction {
+  id: number
+  vendor: number
+  type: 'PURCHASE' | 'PAYMENT'
+  amount: string
+  date: string
+  reference: string | null
+  notes: string | null
+}
 
-export interface VendorStats {
-  total: number
-  active: number
-  inactive: number
+export interface VendorPayment {
+  id: number
+  purchase: { id: number } | null
+}
+
+export interface LedgerRow {
+  id: number
+  date: string
+  type: 'PURCHASE' | 'PAYMENT'
+  reference: string
+  debit: number
+  credit: number
+  balance: number
+}
+
+export interface VendorPaymentPayload {
+  vendor: number
+  purchase?: number
+  payment_method: 'CASH' | 'BANK' | 'CHEQUE' | 'PARCHI'
+  amount: number
+  bank_name?: string
+  reference: string
+  notes: string
 }

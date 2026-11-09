@@ -79,13 +79,14 @@
           <thead>
             <tr>
               <th class="checkbox-col">
-                <SelectAllCheckbox 
-                  entityType="assets" 
-                  :allIds="filteredAssets.map(a => a.id)" 
+                <SelectAllCheckbox
+                  entityType="assets"
+                  :allIds="pageIds"
                 />
               </th>
               <th>Asset Name</th>
-              <th>Category</th>
+              <th>Type</th>
+              <th>Location</th>
               <th>Purchase Value</th>
               <th>Current Value</th>
               <th>Status</th>
@@ -94,7 +95,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="asset in filteredAssets" :key="asset.id" class="table-row">
+            <tr v-for="asset in pageItems" :key="asset.id" class="table-row">
               <td class="checkbox-col">
                 <SelectableCheckbox entityType="assets" :id="asset.id" />
               </td>
@@ -112,8 +113,9 @@
                 </div>
               </td>
               <td>
-                <span class="category-badge">{{ asset.type }}</span>
+                <span class="category-badge">{{ typeLabel(asset.type) }}</span>
               </td>
+              <td>{{ asset.location || '—' }}</td>
               <td>₨{{ Number(asset.purchase_value).toFixed(2) }}</td>
               <td>₨{{ Number(asset.current_value).toFixed(2) }}</td>
               <td>
@@ -137,6 +139,14 @@
           <p>No assets found.</p>
           <button @click="showAddForm = true" class="btn-primary">Add Your First Asset</button>
         </div>
+        <PaginationBar
+          :page="page"
+          :totalPages="totalPages"
+          :total="total"
+          :pageSize="pageSize"
+          @update:page="goTo"
+          @update:pageSize="setPageSize"
+        />
       </div>
     </div>
 
@@ -245,6 +255,8 @@
             />
           </div>
           
+          <p v-if="formError" class="error-message">{{ formError }}</p>
+
           <div class="form-actions">
             <button type="button" @click="closeForm" class="btn-secondary">Cancel</button>
             <button type="submit" class="btn-primary">
@@ -265,7 +277,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAssetsStore } from '../stores/assets'
 import { useAuthStore } from '../../../shared/stores/auth'
 import { useBatchActionsStore } from '../../../shared/stores/batchActions'
@@ -274,6 +286,8 @@ import ExportButton from '../../../shared/components/ExportButton.vue'
 import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
 import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
 import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
 import type { Asset, CreateAssetRequest } from '../types'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
 
@@ -285,19 +299,32 @@ const showAddForm = ref(false)
 const showEditForm = ref(false)
 const showImportWizard = ref(false)
 const editingAsset = ref<Asset | null>(null)
+const formError = ref('')
 
-const form = ref<CreateAssetRequest>({
-  name: '',
-  description: '',
-  category: '',
-  type: 'EQUIPMENT',
-  value: 0,
-  current_value: 0,
-  purchase_value: 0,
-  purchase_date: new Date().toISOString().split('T')[0],
-  location: '',
-  status: 'ACTIVE'
-})
+const TYPE_LABELS: Record<string, string> = {
+  MACHINE: 'Machine', MOLD: 'Mold', EQUIPMENT: 'Equipment', FURNITURE: 'Furniture',
+  VEHICLE: 'Vehicle', BUILDING: 'Building', TECHNOLOGY: 'Technology', OTHER: 'Other',
+}
+
+function typeLabel(type: string) {
+  return TYPE_LABELS[type] ?? type
+}
+
+function emptyForm(): CreateAssetRequest {
+  return {
+    name: '',
+    description: '',
+    category: '',
+    type: 'EQUIPMENT',
+    current_value: 0,
+    purchase_value: 0,
+    purchase_date: new Date().toLocaleDateString('en-CA'),
+    location: '',
+    status: 'ACTIVE'
+  }
+}
+
+const form = ref<CreateAssetRequest>(emptyForm())
 
 onMounted(() => {
   store.fetchAssets()
@@ -306,13 +333,19 @@ onMounted(() => {
 const assets = computed(() => store.assets || [])
 
 const filteredAssets = computed(() => {
-  if (!searchTerm.value) return assets.value
-  return assets.value.filter(asset => 
-    asset.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    asset.description.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    asset.type.toLowerCase().includes(searchTerm.value.toLowerCase())
+  const term = searchTerm.value.toLowerCase()
+  if (!term) return assets.value
+  return assets.value.filter(asset =>
+    asset.name.toLowerCase().includes(term) ||
+    (asset.description ?? '').toLowerCase().includes(term) ||
+    (asset.location ?? '').toLowerCase().includes(term) ||
+    typeLabel(asset.type).toLowerCase().includes(term)
   )
 })
+
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(filteredAssets)
+const pageIds = computed(() => pageItems.value.map(a => a.id))
+watch(searchTerm, reset)
 
 const totalValue = computed(() =>
   assets.value.reduce((sum, asset) => sum + Number(asset.current_value), 0)
@@ -328,7 +361,18 @@ const depreciatedAssets = computed(() =>
 
 function editAsset(asset: Asset) {
   editingAsset.value = asset
-  form.value = { ...asset }
+  form.value = {
+    name: asset.name,
+    description: asset.description ?? '',
+    category: asset.category ?? '',
+    type: asset.type,
+    current_value: Number(asset.current_value ?? 0),
+    purchase_value: Number(asset.purchase_value ?? 0),
+    purchase_date: asset.purchase_date ?? '',
+    location: asset.location ?? '',
+    status: asset.status
+  }
+  formError.value = ''
   showEditForm.value = true
 }
 
@@ -337,12 +381,23 @@ async function deleteAsset(asset: Asset) {
     try {
       await acceptQueued(() => store.deleteAsset(asset.id))
     } catch (error) {
-      // Handle error silently
+      alert(errorMessage(error))
     }
   }
 }
 
+function errorMessage(error: any): string {
+  const data = error?.response?.data
+  if (!data) return error?.message || 'Request failed'
+  if (typeof data === 'string') return data
+  if (data.detail) return String(data.detail)
+  return Object.entries(data)
+    .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(' ') : msgs}`)
+    .join('\n')
+}
+
 async function saveAsset() {
+  formError.value = ''
   try {
     if (showEditForm.value) {
       await acceptQueued(() => store.updateAsset(editingAsset.value!.id, form.value))
@@ -351,7 +406,7 @@ async function saveAsset() {
     }
     closeForm()
   } catch (error) {
-    // Handle error silently
+    formError.value = errorMessage(error)
   }
 }
 
@@ -359,21 +414,12 @@ function closeForm() {
   showAddForm.value = false
   showEditForm.value = false
   editingAsset.value = null
-  form.value = {
-    name: '',
-    description: '',
-    category: '',
-    type: 'EQUIPMENT',
-    value: 0,
-    current_value: 0,
-    purchase_value: 0,
-    purchase_date: new Date().toISOString().split('T')[0],
-    location: '',
-    status: 'ACTIVE'
-  }
+  formError.value = ''
+  form.value = emptyForm()
 }
 
-function formatDate(dateString: string) {
+function formatDate(dateString: string | null) {
+  if (!dateString) return '—'
   return new Date(dateString).toLocaleDateString()
 }
 

@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from .models import Vendor, VendorTransaction, VendorProduct
 from .serializers import VendorSerializer, VendorTransactionSerializer, VendorProductSerializer
@@ -99,6 +100,11 @@ class VendorViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, viewset
 
         return super().update(request, *args, **kwargs)
 
+    def perform_destroy(self, instance):
+        if instance.purchases.exists() or instance.payments.exists():
+            raise ValidationError({'detail': 'This vendor has purchases or payments and cannot be deleted.'})
+        instance.delete()
+
     @action(detail=True, methods=['get'])
     def products(self, request, pk=None):
         """Get all products supplied by this vendor"""
@@ -159,6 +165,12 @@ class VendorProductViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(vendor_products, many=True)
         return Response(serializer.data)
 
-class VendorTransactionViewSet(viewsets.ModelViewSet):
-    queryset = VendorTransaction.objects.all()
+class VendorTransactionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = VendorTransactionSerializer
+
+    def get_queryset(self):
+        queryset = VendorTransaction.objects.order_by('date', 'id')
+        vendor = self.request.query_params.get('vendor')
+        if vendor:
+            queryset = queryset.filter(vendor_id=vendor)
+        return queryset

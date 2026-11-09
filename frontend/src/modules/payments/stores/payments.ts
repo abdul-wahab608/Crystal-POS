@@ -1,60 +1,44 @@
 import { defineStore } from 'pinia'
-import type { Payment, CreatePaymentRequest, UpdatePaymentRequest } from '../types'
+import type { Payment, PaymentRequest, PaymentFilters, Vendor, BankAccount } from '../types'
 import api from '../../../shared/api/axios'
-import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const usePaymentsStore = defineStore('payments', {
   state: () => ({
     payments: [] as Payment[],
+    vendors: [] as Vendor[],
+    bankAccounts: [] as BankAccount[],
     loading: false,
     error: null as string | null,
   }),
   actions: {
-    async fetchPayments() {
+    async fetchPayments(filters: PaymentFilters = {}) {
       this.loading = true
       try {
-        const res = await api.get<Payment[]>('/payments/')
+        const res = await api.get<Payment[]>('/payments/', { params: filters })
         this.payments = res.data
         this.error = null
       } catch (e: any) {
-        this.error = e.response?.data?.message || e.message
+        this.error = e.response?.data?.detail || e.message
+        throw e
       } finally {
         this.loading = false
       }
     },
-    async createPayment(payload: CreatePaymentRequest) {
-      try {
-        const res = await api.post<Payment>('/payments/', payload)
-        this.payments.push(res.data)
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
+    async fetchFormOptions() {
+      const [vendors, banks] = await Promise.all([
+        api.get<Vendor[]>('/vendors/'),
+        api.get<BankAccount[]>('/bank-accounts/'),
+      ])
+      this.vendors = vendors.data
+      this.bankAccounts = banks.data.filter((b: any) => b.is_active !== false)
     },
-    async updatePayment(id: number, payload: UpdatePaymentRequest) {
-      try {
-        const res = await api.patch<Payment>(`/payments/${id}/`, payload)
-        const idx = this.payments.findIndex(p => p.id === id)
-        if (idx !== -1) this.payments[idx] = res.data
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
+    async createPayment(payload: PaymentRequest) {
+      const res = await api.post<{ id: number }>('/payments/', payload)
+      return res.data
     },
     async deletePayment(id: number) {
-      try {
-        await api.delete(`/payments/${id}/`)
-        this.payments = this.payments.filter(p => p.id !== id)
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
-    }
-  }
-}) 
+      await api.delete(`/payments/${id}/`)
+      this.payments = this.payments.filter(p => p.id !== id)
+    },
+  },
+})

@@ -34,12 +34,20 @@
     <div class="sync-queue-section" v-if="status.pending.length > 0">
       <h3>📤 Pending Sync Items</h3>
       <div class="queue-list">
-        <div v-for="item in status.pending" :key="item.seq" class="queue-item">
+        <div v-for="item in pendingItems" :key="item.seq" class="queue-item">
           <div class="queue-method" :class="item.method">{{ item.method }}</div>
           <div class="queue-url">{{ item.url }}</div>
           <div class="queue-time">{{ formatTime(item.timestamp) }}</div>
         </div>
       </div>
+      <PaginationBar
+        :page="pendingPage"
+        :totalPages="pendingTotalPages"
+        :total="pendingTotal"
+        :pageSize="pendingSize"
+        @update:page="goToPendingPage"
+        @update:pageSize="setPendingSize"
+      />
       <div class="queue-actions">
         <button @click="syncNow" class="btn btn-primary">🔄 Sync Now</button>
       </div>
@@ -49,7 +57,7 @@
       <h3>⚠️ Failed to Sync</h3>
       <p class="section-note">These changes were rejected by the server and were not saved. Discard them only after checking them.</p>
       <div class="queue-list">
-        <div v-for="item in status.failed" :key="item.seq" class="queue-item failed-item">
+        <div v-for="item in failedItems" :key="item.seq" class="queue-item failed-item">
           <div class="queue-method" :class="item.method">{{ item.method }}</div>
           <div class="queue-url">{{ item.url }}</div>
           <div class="queue-time">{{ formatTime(item.timestamp) }}</div>
@@ -57,6 +65,14 @@
           <button @click="discard(item.seq)" class="btn btn-danger btn-small">Discard</button>
         </div>
       </div>
+      <PaginationBar
+        :page="failedPage"
+        :totalPages="failedTotalPages"
+        :total="failedTotal"
+        :pageSize="failedSize"
+        @update:page="goToFailedPage"
+        @update:pageSize="setFailedSize"
+      />
     </div>
 
     <div class="cache-section">
@@ -82,13 +98,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import offlineManager, { type OfflineStatus } from '@/shared/utils/offlineManager'
 import indexedDBManager from '@/shared/utils/indexedDBManager'
+import PaginationBar from '@/shared/components/PaginationBar.vue'
+import { usePagination } from '@/shared/composables/usePagination'
 
 const CACHE_STORES = ['customers', 'products', 'vendors', 'sales', 'purchases']
 
 const status = ref<OfflineStatus>(offlineManager.getStatus())
+
+const {
+  page: pendingPage, pageSize: pendingSize, totalPages: pendingTotalPages, pageItems: pendingItems, total: pendingTotal,
+  goTo: goToPendingPage, setPageSize: setPendingSize,
+} = usePagination(computed(() => status.value.pending))
+const {
+  page: failedPage, pageSize: failedSize, totalPages: failedTotalPages, pageItems: failedItems, total: failedTotal,
+  goTo: goToFailedPage, setPageSize: setFailedSize,
+} = usePagination(computed(() => status.value.failed))
 const cachedItems = ref(0)
 let unsubscribe: (() => void) | null = null
 

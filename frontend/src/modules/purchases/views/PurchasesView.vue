@@ -1,870 +1,208 @@
 <template>
   <div class="purchases-page">
-    <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Purchases</h1>
-      <button @click="handleAddClick" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        New Purchase
-      </button>
+      <button class="btn-primary" @click="formOpen = true">New purchase</button>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="purchasesStore.loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading purchases...</p>
+    <div class="filters">
+      <label class="filter-check">
+        <input v-model="unpaidOnly" type="checkbox" /> Unpaid bills only
+      </label>
     </div>
 
-    <!-- Error State -->
-    <div v-else-if="false" class="error-state">
-      <p class="error-message">Error loading purchases</p>
-      <button @click="loadPurchases()" class="btn-secondary">Try Again</button>
-    </div>
+    <p v-if="loadError" class="form-error">{{ loadError }}</p>
+    <p v-else-if="loading" class="muted">Loading purchases...</p>
 
-    <!-- Content -->
-    <div v-else class="content">
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-number">{{ purchases.length }}</div>
-          <div class="stat-label">Total Purchases</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">₨{{ typeof totalSpent === 'number' ? totalSpent.toFixed(2) : '0.00' }}</div>
-          <div class="stat-label">Total Spent</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">{{ thisMonthPurchases }}</div>
-          <div class="stat-label">This Month</div>
-        </div>
-      </div>
-
-      <!-- Search -->
-      <div class="filters-section">
-        <input 
-          v-model="searchTerm" 
-          type="text" 
-          placeholder="Search purchases..." 
-          class="search-input"
-        />
-      </div>
-
-      <!-- Purchases Table -->
-      <div class="table-container">
-        <table class="purchases-table">
-          <thead>
+    <div v-else class="table-container">
+      <table v-if="purchasesStore.purchases.length" class="purchases-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Date</th>
+            <th>Vendor</th>
+            <th>Invoice #</th>
+            <th class="num">Lines</th>
+            <th class="num">Total</th>
+            <th class="num">Paid</th>
+            <th class="num">Unpaid</th>
+            <th>Payment</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="purchase in pageItems" :key="purchase.id">
             <tr>
-              <th>Purchase ID</th>
-              <th>Vendor</th>
-              <th>Items</th>
-              <th>Total Amount</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="purchase in filteredPurchases" :key="purchase.id" class="table-row">
-              <td>#{{ purchase.id }}</td>
-              <td>{{ purchase.vendor_name || 'N/A' }}</td>
               <td>
-                <div class="items-list">
-                  <div v-if="purchase.items && purchase.items.length > 0">
-                    <div v-for="item in purchase.items" :key="item.id" class="item-entry">
-                      {{ item.product_name }} ({{ item.quantity }} × ₨{{ item.unit_cost }})
-                    </div>
-                  </div>
-                  <span v-else>No items</span>
-                </div>
+                <button class="link-btn" :aria-expanded="expandedId === purchase.id" @click="toggle(purchase.id)">
+                  {{ expandedId === purchase.id ? 'Hide' : 'Show' }}
+                </button>
               </td>
-              <td>₨{{ (Number(purchase.total_amount) || 0).toFixed(2) }}</td>
               <td>{{ formatDate(purchase.date) }}</td>
               <td>
-                <div class="actions">
-                  <button @click="viewPurchase(purchase)" class="action-btn view">View</button>
-                  <button @click="deletePurchase(purchase.id)" class="action-btn delete">Delete</button>
-                </div>
+                <router-link :to="{ path: '/vendors', query: { vendor: purchase.vendor } }" class="vendor-link">
+                  {{ purchase.vendor_name }}
+                </router-link>
+              </td>
+              <td>{{ purchase.invoice_number || '-' }}</td>
+              <td class="num">{{ purchase.items.length }}</td>
+              <td class="num">{{ Number(purchase.total_amount).toFixed(2) }}</td>
+              <td class="num">{{ Number(purchase.paid_amount).toFixed(2) }}</td>
+              <td class="num">{{ Number(purchase.unpaid_amount).toFixed(2) }}</td>
+              <td>
+                <span class="badge" :class="purchase.payment_status.toLowerCase()">{{ paymentStatusLabel(purchase.payment_status) }}</span>
+              </td>
+              <td>
+                <button class="link-btn danger" @click="confirmDelete(purchase)">Delete</button>
               </td>
             </tr>
-          </tbody>
-        </table>
-
-        <!-- Empty State -->
-        <div v-if="filteredPurchases.length === 0" class="empty-state">
-          <p>No purchases found.</p>
-          <button @click="handleAddClick" class="btn-primary">Create Your First Purchase</button>
-        </div>
-      </div>
+            <tr v-if="expandedId === purchase.id" class="detail-row">
+              <td colspan="10">
+                <table class="lines-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Variant</th>
+                      <th class="num">Quantity</th>
+                      <th class="num">Unit cost</th>
+                      <th class="num">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in purchase.items" :key="item.id">
+                      <td>{{ item.raw_material_name ?? item.product_name }}</td>
+                      <td>{{ item.raw_material_name ? 'Raw material' : `${item.size_range_name} / ${item.color_name}` }}</td>
+                      <td class="num">{{ Number(item.quantity).toFixed(2) }} {{ item.unit }}</td>
+                      <td class="num">{{ Number(item.unit_cost).toFixed(2) }}</td>
+                      <td class="num">{{ Number(item.subtotal).toFixed(2) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <p v-else class="empty-state">No purchases yet.</p>
+      <PaginationBar
+        v-if="purchasesStore.purchases.length"
+        :page="page"
+        :totalPages="totalPages"
+        :total="total"
+        :pageSize="pageSize"
+        @update:page="goTo"
+        @update:pageSize="setPageSize"
+      />
     </div>
 
-    <!-- Add Purchase Modal -->
-    <div v-if="showAddForm" class="modal-overlay" @click.self="closeForm">
-      <div class="modal large">
-        <div class="modal-header">
-          <h2>Create New Purchase</h2>
-          <button @click="closeForm" class="close-btn">×</button>
-        </div>
-        
-        <form @submit.prevent="savePurchase" class="modal-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="vendor">Vendor *</label>
-              <select id="vendor" v-model="form.vendor" required class="form-input">
-                <option value="">Select Vendor</option>
-                <option v-for="vendor in vendors" :key="vendor.id" :value="vendor.id">
-                  {{ vendor.name }}
-                </option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="invoice_number">Invoice Number *</label>
-              <input 
-                id="invoice_number"
-                v-model="form.invoice_number" 
-                type="text" 
-                required
-                class="form-input"
-                placeholder="Invoice #"
-              />
-            </div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label for="purchase_date">Purchase Date</label>
-              <input 
-                id="purchase_date"
-                v-model="form.purchase_date" 
-                type="date" 
-                required 
-                class="form-input"
-              />
-            </div>
-            
-            <div class="form-group">
-              <label for="payment_status">Payment Status</label>
-              <select id="payment_status" v-model="form.payment_status" required class="form-input">
-                <option value="PAID">Paid</option>
-                <option value="PARTIAL">Partial</option>
-                <option value="UNPAID">Unpaid</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Purchase Items Section -->
-          <div class="form-group">
-            <label>Purchase Items</label>
-            <div class="items-section">
-              <div v-for="(item, index) in form.items" :key="index" class="item-row">
-                <select v-model="item.type" class="form-input item-type">
-                  <option value="existing_product">Purchased Item</option>
-                  <option value="existing_material">Raw Material</option>
-                  <option value="new_item">New Item (Not in DB)</option>
-                </select>
-                
-                <select 
-                  v-if="item.type === 'existing_product'" 
-                  v-model="item.product_id" 
-                  class="form-input item-select"
-                  required
-                >
-                  <option value="">Select Purchased Item</option>
-                  <option v-for="product in purchasedProducts" :key="product.id" :value="product.id">
-                    {{ product.name }}
-                  </option>
-                </select>
-                
-                <select 
-                  v-if="item.type === 'existing_material'" 
-                  v-model="item.product_id" 
-                  class="form-input item-select"
-                  required
-                >
-                  <option value="">Select Raw Material</option>
-                  <option v-for="material in rawMaterials" :key="material.id" :value="material.id">
-                    {{ material.name }}
-                  </option>
-                </select>
-                
-                <input 
-                  v-if="item.type === 'new_item'" 
-                  v-model="item.item_name" 
-                  type="text" 
-                  placeholder="Item name"
-                  class="form-input item-select"
-                  required
-                />
-                
-                <input 
-                  v-model.number="item.quantity" 
-                  type="number" 
-                  step="0.01"
-                  min="0.01"
-                  placeholder="Qty"
-                  class="form-input item-qty"
-                  required
-                />
-                
-                <input 
-                  v-model.number="item.unit_cost" 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  placeholder="Unit Cost"
-                  class="form-input item-price"
-                  required
-                />
-                
-                <div class="item-subtotal">
-                  ₨{{ (item.quantity * item.unit_cost).toFixed(2) }}
-                </div>
-                
-                <button type="button" @click="removeItem(index)" class="btn-remove-item">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <button type="button" @click="addItem" class="btn-add-item">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                Add Item
-              </button>
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="notes">Notes</label>
-            <textarea 
-              id="notes"
-              v-model="form.notes" 
-              class="form-input"
-              rows="3"
-              placeholder="Additional notes about this purchase"
-            ></textarea>
-          </div>
-          
-          <!-- Total Amount Display -->
-          <div class="form-group total-display">
-            <label>Total Amount</label>
-            <div class="total-amount">
-              ₨{{ formTotal.toFixed(2) }}
-            </div>
-          </div>
-          
-          <div class="form-actions">
-            <button type="button" @click="closeForm" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">Create Purchase</button>
-          </div>
-        </form>
-      </div>
+    <div v-if="formOpen" class="modal-overlay" @click.self="formOpen = false">
+      <PurchaseForm @saved="onSaved" @cancel="formOpen = false" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { usePurchasesStore } from '../stores/purchases'
-import type { CreatePurchaseItem } from '../types'
-import { useRawMaterialsStore } from '../../raw_materials/stores/raw_materials'
-import { useProductsStore } from '../../products/stores/products'
-import { useVendorsStore } from '../../vendors/stores/vendors'
+import { useToastStore } from '../../../shared/stores/toast'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import { paymentStatusLabel } from '../../../shared/utils/statusLabels'
+import { errorMessageOf } from '../../raw_materials/utils/errorMessage'
+import PurchaseForm from '../components/PurchaseForm.vue'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
+import type { Purchase } from '../types'
 
 const purchasesStore = usePurchasesStore()
-const rawMaterialsStore = useRawMaterialsStore()
-const productsStore = useProductsStore()
-const vendorsStore = useVendorsStore()
+const toast = useToastStore()
+const route = useRoute()
+const router = useRouter()
 
-const searchTerm = ref('')
-const showAddForm = ref(false)
+const loading = ref(false)
+const loadError = ref('')
+const formOpen = ref(false)
+const expandedId = ref<number | null>(null)
+const unpaidOnly = ref(route.query.unpaid === 'true')
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(computed(() => purchasesStore.purchases))
 
-const form = ref({
-  vendor: '',
-  invoice_number: '',
-  payment_status: 'UNPAID',
-  purchase_date: new Date().toISOString().split('T')[0],
-  items: [{ type: 'existing_material', product_id: '', item_name: '', quantity: 1, unit_cost: 0 }],
-  notes: ''
-})
-
-function handleAddClick() {
-  showAddForm.value = true
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString()
 }
 
-// Computed properties
-const purchases = computed(() => purchasesStore.purchases)
-const rawMaterials = computed(() => rawMaterialsStore.materials)
-const allProducts = computed(() => productsStore.products)
-const purchasedProducts = computed(() => {
-  return Array.isArray(allProducts.value) 
-    ? allProducts.value.filter(p => p.product_type === 'PURCHASED')
-    : []
-})
-const vendors = computed(() => vendorsStore.vendors.filter(v => v.is_active))
-
-const filteredPurchases = computed(() => {
-  if (!searchTerm.value) return purchases.value
-  return purchases.value.filter(purchase => 
-    (purchase.vendor_name || '').toLowerCase().includes(searchTerm.value.toLowerCase())
-  )
-})
-
-const totalSpent = computed(() => {
-  if (!Array.isArray(purchases.value)) {
-    return 0
-  }
-  const total = purchases.value.reduce((total, purchase) => {
-    const amount = purchase.total_amount || 0
-    return total + Number(amount)
-  }, 0)
-  return total
-})
-
-const thisMonthPurchases = computed(() => {
-  const thisMonth = new Date().getMonth()
-  const thisYear = new Date().getFullYear()
-  return purchases.value.filter(purchase => {
-    const purchaseDate = new Date(purchase.date)
-    return purchaseDate.getMonth() === thisMonth && purchaseDate.getFullYear() === thisYear
-  }).length
-})
-
-// Methods
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString()
+function toggle(id: number) {
+  expandedId.value = expandedId.value === id ? null : id
 }
 
-function closeForm() {
-  showAddForm.value = false
-  resetForm()
-}
-
-function resetForm() {
-  form.value = {
-    vendor: '',
-    invoice_number: '',
-    payment_status: 'UNPAID',
-    purchase_date: new Date().toISOString().split('T')[0],
-    items: [{ type: 'existing_material', product_id: '', item_name: '', quantity: 1, unit_cost: 0 }],
-    notes: ''
-  }
-}
-
-function addItem() {
-  form.value.items.push({ type: 'existing_material', product_id: '', item_name: '', quantity: 1, unit_cost: 0 })
-}
-
-function removeItem(index: number) {
-  if (form.value.items.length > 1) {
-    form.value.items.splice(index, 1)
-  }
-}
-
-const formTotal = computed(() => {
-  return form.value.items.reduce((total, item) => {
-    return total + (Number(item.quantity || 0) * Number(item.unit_cost || 0))
-  }, 0)
-})
-
-async function savePurchase() {
+async function load() {
+  loading.value = true
+  loadError.value = ''
   try {
-    // Calculate total amount from items
-    const totalAmount = formTotal.value
-    
-    // Prepare items for backend - create new products if needed
-    const items: CreatePurchaseItem[] = []
-    
-    for (const item of form.value.items) {
-      let productId: number | null = null
-      
-      if (item.type === 'existing_product' || item.type === 'existing_material') {
-        productId = Number(item.product_id)
-        
-        if (!productId) {
-          alert('Please select a product or raw material from the dropdown')
-          return
-        }
-      } else if (item.type === 'new_item') {
-        // Create a new product on-the-fly
-        if (!item.item_name || item.item_name.trim() === '') {
-          alert('Please enter a name for the new item')
-          return
-        }
-        
-        try {
-          // Create as a purchased product
-          const newProduct = await productsStore.createProduct({
-            name: item.item_name.trim(),
-            unit: 'PCS',
-            cop: item.unit_cost,
-            quantity: 0,
-            product_type: 'PURCHASED'
-          })
-          productId = newProduct.id
-        } catch (error) {
-          alert(`Failed to create new product: ${item.item_name}`)
-          return
-        }
-      }
-      
-      if (productId) {
-        items.push({
-          product: productId,
-          quantity: item.quantity,
-          unit_cost: item.unit_cost,
-          subtotal: item.quantity * item.unit_cost
-        })
-      }
-    }
-    
-    if (items.length === 0) {
-      alert('Please add at least one item to the purchase')
-      return
-    }
-    
-    // Create purchase with items
-    await purchasesStore.createPurchase({
-      vendor: Number(form.value.vendor),
-      total_amount: totalAmount,
-      items: items
-    })
-    
-    alert('Purchase created successfully!')
-    closeForm()
-    purchasesStore.fetchPurchases()
-    productsStore.fetchProducts() // Refresh products list
-  } catch (error: any) {
-    const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : error.message
-    alert(`Error creating purchase: ${errorMsg}`)
+    await purchasesStore.fetchPurchases({ unpaid: unpaidOnly.value })
+  } catch (e) {
+    loadError.value = errorMessageOf(e)
+  } finally {
+    loading.value = false
   }
 }
 
-function viewPurchase(purchase: any) {
-  // Implement view functionality
-}
-
-function deletePurchase(id: number) {
-  if (confirm('Are you sure you want to delete this purchase?')) {
-    // Implement delete functionality
+async function confirmDelete(purchase: Purchase) {
+  if (Number(purchase.paid_amount) > 0) {
+    toast.error(
+      'Cannot delete this bill',
+      `Delete the vendor payments for Purchase #${purchase.id} first (${Number(purchase.paid_amount).toFixed(2)} is paid against it).`,
+    )
+    return
+  }
+  if (!window.confirm(`Delete purchase #${purchase.id} from ${purchase.vendor_name}? Its stock and vendor balance will be reversed.`)) return
+  try {
+    await acceptQueued(() => purchasesStore.deletePurchase(purchase.id))
+  } catch (e) {
+    toast.error('Could not delete purchase', errorMessageOf(e))
   }
 }
 
-function getRawMaterialName(rawMaterialId: number) {
-  const material = rawMaterials.value.find(m => m.id === rawMaterialId)
-  return material?.name || 'Unknown'
+async function onSaved() {
+  formOpen.value = false
+  await load()
 }
 
-function getRawMaterialUnit(rawMaterialId: number) {
-  const material = rawMaterials.value.find(m => m.id === rawMaterialId)
-  return material?.unit || ''
-}
-
-function loadPurchases() {
-  rawMaterialsStore.fetchMaterials()
-  productsStore.fetchProducts()
-  vendorsStore.fetchVendors()
-  purchasesStore.fetchPurchases()
-}
-
-onMounted(() => {
-  loadPurchases()
+watch(unpaidOnly, (value) => {
+  reset()
+  router.replace({ query: value ? { unpaid: 'true' } : {} })
+  load()
 })
+
+watch(() => route.query.unpaid, (value) => {
+  unpaidOnly.value = value === 'true'
+})
+
+onMounted(load)
 </script>
 
 <style scoped>
-.purchases-page {
-  padding: 2rem;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.page-title {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #111827;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-
-.btn-primary:hover {
-  background: #1d4ed8;
-}
-
-.loading-state, .error-state {
-  text-align: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #2563eb;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-message {
-  color: #dc2626;
-  margin-bottom: 1rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #2563eb;
-}
-
-.stat-label {
-  color: #6b7280;
-  margin-top: 0.5rem;
-}
-
-.filters-section {
-  margin-bottom: 1.5rem;
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.table-container {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.purchases-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.purchases-table th,
-.purchases-table td {
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.purchases-table th {
-  background: #f9fafb;
-  font-weight: 600;
-  color: #374151;
-}
-
-.table-row:hover {
-  background: #f9fafb;
-}
-
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  padding: 0.25rem 0.5rem;
-  border: none;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.action-btn.view {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.action-btn.delete {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.items-list {
-  font-size: 0.875rem;
-}
-
-.item-entry {
-  padding: 0.125rem 0;
-  color: #374151;
-}
-
-.status-paid {
-  background: #dcfce7;
-  color: #16a34a;
-  padding: 0.25rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.status-unpaid {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 0.25rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.status-partial {
-  background: #fef3c7;
-  color: #d97706;
-  padding: 0.25rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 800px;
-  max-height: 90vh;
-  overflow-y: auto;
-  margin: 1rem;
-}
-
-.modal.large {
-  max-width: 1000px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: #6b7280;
-  cursor: pointer;
-}
-
-.modal-form {
-  padding: 1.5rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-
-.items-section {
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  padding: 1rem;
-  background: #f9fafb;
-}
-
-.item-row {
-  display: grid;
-  grid-template-columns: 140px 2fr 100px 120px 100px auto;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  align-items: center;
-  background: white;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  border: 1px solid #e5e7eb;
-}
-
-.item-type {
-  font-size: 0.8125rem;
-}
-
-.item-select {
-  min-width: 180px;
-}
-
-.item-qty {
-  width: 100px;
-}
-
-.item-price {
-  width: 120px;
-}
-
-.item-subtotal {
-  font-weight: 600;
-  color: #059669;
-  font-size: 0.9375rem;
-  text-align: right;
-  min-width: 100px;
-}
-
-.btn-remove-item {
-  background: #fee2e2;
-  color: #dc2626;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-remove-item:hover {
-  background: #fecaca;
-}
-
-.btn-add-item {
-  background: #10b981;
-  color: white;
-  border: none;
-  padding: 0.75rem 1rem;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  margin-top: 0.5rem;
-  transition: all 0.2s;
-}
-
-.btn-add-item:hover {
-  background: #059669;
-}
-
-.total-display {
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.375rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.total-amount {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #2563eb;
-  text-align: center;
-  margin-top: 0.5rem;
-}
-
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #374151;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: #d1d5db;
-}
-</style> 
+.purchases-page { padding: 1.5rem; }
+.filters { margin-bottom: 0.75rem; }
+.filter-check { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; cursor: pointer; }
+.badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+.badge.paid { background: #d1fae5; color: #065f46; }
+.badge.partial { background: #fef3c7; color: #92400e; }
+.badge.unpaid { background: #fee2e2; color: #991b1b; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.page-title { font-size: 1.5rem; font-weight: 600; }
+.muted { color: #6b7280; }
+.form-error { color: #b91c1c; }
+.table-container { background: white; border-radius: 0.5rem; border: 1px solid #e5e7eb; overflow-x: auto; }
+.purchases-table, .lines-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.purchases-table th, .purchases-table td, .lines-table th, .lines-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; text-align: left; }
+.purchases-table th { background: #f9fafb; font-weight: 600; }
+.lines-table { background: #f9fafb; }
+.detail-row td { padding: 0.5rem 1rem 1rem; }
+.num { text-align: right; white-space: nowrap; }
+.link-btn { background: none; border: none; color: #2563eb; cursor: pointer; font-size: 0.875rem; }
+.link-btn.danger { color: #b91c1c; }
+.vendor-link { color: #2563eb; text-decoration: underline; }
+.empty-state { padding: 2rem; text-align: center; color: #6b7280; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
+.btn-primary { cursor: pointer; border: none; }
+</style>

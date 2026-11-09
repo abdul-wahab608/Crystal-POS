@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    ReportViewSet, sales_report, inventory_report,
+    ReportViewSet, sales_report, inventory_report, dashboard_summary,
     customer_report, area_report, article_report, CustomerSalesReportView
 )
 
@@ -9,6 +9,7 @@ router = DefaultRouter()
 router.register(r'', ReportViewSet)
 
 urlpatterns = [
+    path('dashboard/', dashboard_summary, name='dashboard_summary'),
     path('sales-report/', sales_report, name='sales_report'),
     path('inventory-report/', inventory_report, name='inventory_report'),
     path('customer-report/', customer_report, name='customer_report'),

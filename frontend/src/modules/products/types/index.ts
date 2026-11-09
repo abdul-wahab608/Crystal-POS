@@ -1,3 +1,4 @@
+import type { CostSource } from '../../profit/types'
 
 export interface SizeRange {
   id: number
@@ -13,65 +14,46 @@ export interface Color {
 
 export interface ProductVariant {
   id: number
-  product: number
   size_range: number
+  size_range_name: string
   color: number
-  quantity_dozens: number
+  color_name: string
+  quantity: number | string
+}
+
+export interface VariantRecord extends ProductVariant {
+  product: number
   created_at: string
 }
 
 export interface Product {
   id: number
   name: string
-  unit: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
+  unit: string
   cop: number | string
+  cost_source: CostSource
   quantity: number | string
   product_type: 'MANUFACTURED' | 'PURCHASED'
-  size_range: number | null
-  size_range_name?: string
+  size_ranges: number[]
   variants: ProductVariant[]
   created_at: string
   last_updated: string
 }
 
-export interface ProductHistory {
-  id: number
-  product: number
-  change_type: 'SALE' | 'PURCHASE' | 'ADJUSTMENT'
-  quantity_change: number | string
-  date: string
-  reference: string
-  notes: string
-}
-
-export interface CreateProductRequest {
-  name: string
-  unit: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
-  cop: number
+export interface VariantInput {
+  size_range: number
+  color: number
   quantity: number
-  product_type?: 'MANUFACTURED' | 'PURCHASED'
 }
 
-export interface UpdateProductRequest {
-  name?: string
-  unit?: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
-  cop?: number
-  quantity?: number
+export interface ProductPayload {
+  name: string
+  unit: string
+  cop: number
+  product_type: 'MANUFACTURED' | 'PURCHASED'
+  size_ranges: number[]
+  variants: VariantInput[]
 }
 
-export interface ProductFilters {
-  search?: string
-  name?: string
-  unit?: 'BAG' | 'KILO' | 'PCS' | 'KG' | 'L' | 'M' | 'BOX' | 'PACK' | 'UNIT' | 'GRAM' | 'TON' | 'GALLON' | 'FOOT' | 'YARD' | 'CM' | 'MM' | 'INCH' | 'POUND' | 'OUNCE' | 'CUP' | 'TABLESPOON' | 'TEASPOON'
-  min_price?: number
-  max_price?: number
-  low_stock?: boolean
-  in_stock?: boolean
-}
-
-export interface PaginatedResponse<T> {
-  count: number
-  next: string | null
-  previous: string | null
-  results: T[]
-} 
+export type CreateProductRequest = ProductPayload
+export type UpdateProductRequest = Partial<ProductPayload>

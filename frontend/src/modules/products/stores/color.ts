@@ -29,7 +29,17 @@ export const useColorStore = defineStore('color', {
         this.error = null
       } catch (err: any) {
         if (isQueuedWrite(err)) return
-        this.error = err.message || 'Failed to add color'
+        this.error = err.response?.data?.error || err.response?.data?.name?.[0] || err.message || 'Failed to add color'
+      }
+    },
+    async renameColor(id: number, name: string) {
+      try {
+        const res = await axios.patch<Color>(`/products/colors/${id}/`, { name })
+        this.colors = this.colors.map(c => (c.id === id ? res.data : c))
+        this.error = null
+      } catch (err: any) {
+        if (isQueuedWrite(err)) return
+        this.error = err.response?.data?.name?.[0] || err.response?.data?.error || err.message || 'Failed to rename color'
       }
     },
     async deleteColor(id: number) {
@@ -39,7 +49,7 @@ export const useColorStore = defineStore('color', {
         this.error = null
       } catch (err: any) {
         if (isQueuedWrite(err)) return
-        this.error = err.message || 'Failed to delete color'
+        this.error = err.response?.data?.error || err.response?.data?.name?.[0] || err.message || 'Failed to delete color'
       }
     },
   },

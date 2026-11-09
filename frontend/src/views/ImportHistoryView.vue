@@ -72,7 +72,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="session in filteredSessions" :key="session.id">
+          <tr v-for="session in pageItems" :key="session.id">
             <td>
               <span class="date-main">{{ formatDate(session.created_at) }}</span>
               <span class="date-time">{{ formatTime(session.created_at) }}</span>
@@ -117,6 +117,14 @@
           </tr>
         </tbody>
       </table>
+      <PaginationBar
+        :page="page"
+        :totalPages="totalPages"
+        :total="total"
+        :pageSize="pageSize"
+        @update:page="goTo"
+        @update:pageSize="setPageSize"
+      />
     </div>
 
     <!-- Error Display -->
@@ -130,11 +138,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import api from '../shared/api/axios'
 import { isQueuedWrite } from '../shared/utils/queuedWrite'
 import { useToastStore } from '../shared/stores/toast'
 import { getImportableEntities, IMPORT_CONFIGS } from '../shared/constants/importFields'
+import PaginationBar from '../shared/components/PaginationBar.vue'
+import { usePagination } from '../shared/composables/usePagination'
 
 interface ImportSession {
   id: number
@@ -194,6 +204,9 @@ const filteredSessions = computed(() => {
   
   return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 })
+
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(filteredSessions)
+watch(filters, reset, { deep: true })
 
 function getEntityLabel(entityType: string): string {
   return IMPORT_CONFIGS[entityType]?.displayName || entityType

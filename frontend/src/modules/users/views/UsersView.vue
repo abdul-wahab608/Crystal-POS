@@ -65,7 +65,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in filteredUsers" :key="user.id" class="table-row">
+            <tr v-for="user in pageItems" :key="user.id" class="table-row">
               <td>
                 <div class="user-info">
                   <div class="user-avatar">
@@ -80,7 +80,7 @@
               <td>{{ user.email }}</td>
               <td>
                 <span :class="getRoleClass(user.role)">
-                  {{ user.role }}
+                  {{ ROLE_LABELS[user.role] ?? user.role }}
                 </span>
               </td>
               <td>
@@ -92,7 +92,7 @@
               <td>
                 <div class="actions">
                   <button @click="editUser(user)" class="action-btn edit">Edit</button>
-                  <button @click="deleteUser(user.id)" class="action-btn delete">Delete</button>
+                  <button v-if="user.id !== authStore.user?.id" @click="deleteUser(user.id)" class="action-btn delete">Delete</button>
                 </div>
               </td>
             </tr>
@@ -104,6 +104,14 @@
           <p>No users found.</p>
           <button @click="showAddForm = true" class="btn-primary">Add Your First User</button>
         </div>
+        <PaginationBar
+          :page="page"
+          :totalPages="totalPages"
+          :total="total"
+          :pageSize="pageSize"
+          @update:page="goTo"
+          @update:pageSize="setPageSize"
+        />
       </div>
     </div>
 
@@ -153,36 +161,38 @@
           
           <div class="form-group">
             <label for="email">Email</label>
-            <input 
+            <input
               id="email"
-              v-model="form.email" 
-              type="email" 
-              required 
+              v-model="form.email"
+              type="email"
               class="form-input"
             />
           </div>
-          
-          <div v-if="!showEditForm" class="form-group">
-            <label for="password">Password</label>
-            <input 
+
+          <div class="form-group">
+            <label for="password">{{ showEditForm ? 'New Password' : 'Password' }}</label>
+            <input
               id="password"
-              v-model="form.password" 
-              type="password" 
-              required 
+              v-model="form.password"
+              type="password"
+              :required="!showEditForm"
+              :placeholder="showEditForm ? 'Leave blank to keep current password' : ''"
+              minlength="6"
               class="form-input"
             />
           </div>
-          
+
           <div class="form-group">
             <label for="role">Role</label>
             <select id="role" v-model="form.role" required class="form-input">
-              <option value="">Select Role</option>
               <option value="ADMIN">Administrator</option>
               <option value="MANAGER">Manager</option>
               <option value="CASHIER">Cashier</option>
               <option value="STAFF">Staff</option>
             </select>
           </div>
+
+          <p v-if="formError" class="error-message">{{ formError }}</p>
           
           <div class="form-group">
             <label class="checkbox-label">
@@ -208,26 +218,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useUsersStore } from '../stores/users'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
 import type { User, CreateUserRequest } from '../types'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import { useAuthStore } from '../../../shared/stores/auth'
 
 const store = useUsersStore()
+const authStore = useAuthStore()
 const searchTerm = ref('')
 const showAddForm = ref(false)
 const showEditForm = ref(false)
 const editingUser = ref<User | null>(null)
+const formError = ref('')
 
-const form = ref<CreateUserRequest>({
-  first_name: '',
-  last_name: '',
-  username: '',
-  email: '',
-  password: '',
-  role: '',
-  is_active: true
-})
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Administrator', MANAGER: 'Manager', CASHIER: 'Cashier', STAFF: 'Staff',
+}
+
+function emptyForm(): CreateUserRequest {
+  return {
+    first_name: '',
+    last_name: '',
+    username: '',
+    email: '',
+    password: '',
+    role: 'STAFF',
+    is_active: true
+  }
+}
+
+const form = ref<CreateUserRequest>(emptyForm())
+
+function errorMessage(error: any): string {
+  const data = error?.response?.data
+  if (!data) return error?.message || 'Request failed'
+  if (typeof data === 'string') return data
+  if (data.detail) return String(data.detail)
+  return Object.entries(data)
+    .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(' ') : msgs}`)
+    .join('\n')
+}
 
 onMounted(() => {
   store.fetchUsers()
@@ -245,6 +278,9 @@ const filteredUsers = computed(() => {
   )
 })
 
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(filteredUsers)
+watch(searchTerm, reset)
+
 const activeUsers = computed(() => 
   users.value.filter(u => u.is_active).length
 )
@@ -255,30 +291,39 @@ const adminUsers = computed(() =>
 
 function editUser(user: User) {
   editingUser.value = user
-  form.value = { 
-    ...user,
-    password: '' // Don't show password when editing
+  form.value = {
+    first_name: user.first_name,
+    last_name: user.last_name,
+    username: user.username,
+    email: user.email,
+    password: '',
+    role: user.role,
+    is_active: user.is_active
   }
+  formError.value = ''
   showEditForm.value = true
 }
 
-function deleteUser(id: number) {
-  if (confirm('Are you sure you want to delete this user?')) {
-    acceptQueued(() => store.deleteUser(id))
+async function deleteUser(id: number) {
+  if (!confirm('Are you sure you want to delete this user?')) return
+  try {
+    await acceptQueued(() => store.deleteUser(id))
+  } catch (error) {
+    alert(errorMessage(error))
   }
 }
 
 async function saveUser() {
+  formError.value = ''
   try {
     if (showEditForm.value) {
-      const updateData = { ...form.value }
-      await acceptQueued(() => store.updateUser(editingUser.value!.id, updateData))
+      await acceptQueued(() => store.updateUser(editingUser.value!.id, { ...form.value }))
     } else {
-      await acceptQueued(() => store.createUser(form.value))
+      await acceptQueued(() => store.createUser({ ...form.value }))
     }
     closeForm()
   } catch (error) {
-    // Handle error silently
+    formError.value = errorMessage(error)
   }
 }
 
@@ -286,29 +331,22 @@ function closeForm() {
   showAddForm.value = false
   showEditForm.value = false
   editingUser.value = null
-  form.value = {
-    first_name: '',
-    last_name: '',
-    username: '',
-    email: '',
-    password: '',
-    role: '',
-    is_active: true
-  }
+  formError.value = ''
+  form.value = emptyForm()
 }
 
 function formatDate(dateString: string | null) {
   if (!dateString) return 'Never'
-  return new Date(dateString).toLocaleDateString()
+  return new Date(dateString).toLocaleString()
 }
 
 function getRoleClass(role: string) {
-  switch (role.toLowerCase()) {
-    case 'admin':
+  switch (role) {
+    case 'ADMIN':
       return 'role-admin'
-    case 'manager':
+    case 'MANAGER':
       return 'role-manager'
-    case 'staff':
+    case 'STAFF':
       return 'role-staff'
     default:
       return 'role-user'

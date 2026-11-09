@@ -336,8 +336,8 @@ try:
     User = get_user_model()
     
     if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@crystalpos.com', 'admin123', role='ADMIN')
-        print('SUCCESS: Admin user created (admin / admin123)')
+        User.objects.create_superuser('admin', 'admin@crystalpos.com', os.environ['CRYSTAL_ADMIN_PASSWORD'], role='ADMIN')
+        print('SUCCESS: Admin user created')
     else:
         print('INFO: Admin user already exists')
     
@@ -349,6 +349,11 @@ except Exception as e:
 "@
 
     $TempScript = Join-Path $BackendDir "create_superuser_temp.py"
+    $AdminChars = ([char[]]'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789')
+    $AdminBytes = New-Object byte[] 14
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($AdminBytes)
+    $Script:AdminPassword = -join ($AdminBytes | ForEach-Object { $AdminChars[$_ % $AdminChars.Count] })
+    $env:CRYSTAL_ADMIN_PASSWORD = $Script:AdminPassword
     Write-Log "Creating temporary script: $TempScript"
     
     # Write script with proper encoding
@@ -358,6 +363,7 @@ except Exception as e:
     try {
         # Quote paths to handle spaces in 'Program Files'
         $output = & "$VenvPython" "$TempScript" 2>&1
+        Remove-Item Env:CRYSTAL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
         $output | ForEach-Object { Write-Log "  $_" }
         
         if ($LASTEXITCODE -ne 0) {
@@ -420,9 +426,9 @@ if ($Script:SetupSuccess) {
     Write-Log "CRYSTAL POS SETUP COMPLETED SUCCESSFULLY!" "SUCCESS"
     Write-Log "=========================================================="
     Write-Log ""
-    Write-Log "Default login credentials:"
-    Write-Log "  Username: admin"
-    Write-Log "  Password: admin123"
+    if ($Script:AdminPassword) {
+        Write-Log "First login: username admin, password shown once in the setup dialog. Change it after first login."
+    }
     Write-Log ""
     Write-Log "To start the application:"
     Write-Log "  - Use the desktop shortcut 'Crystal POS'"
@@ -431,7 +437,8 @@ if ($Script:SetupSuccess) {
     Write-Log "Log files saved to: $LogDir"
     Write-Log "=========================================================="
     
-    Show-SuccessDialog -Message "Crystal POS has been installed successfully!`n`nDefault login:`nUsername: admin`nPassword: admin123`n`nUse the desktop shortcut to start the application."
+    $LoginNote = if ($Script:AdminPassword) { "`n`nFirst login:`nUsername: admin`nPassword: $($Script:AdminPassword)`n`nWrite this password down now. It is not shown again." } else { "" }
+    Show-SuccessDialog -Message "Crystal POS has been installed successfully!$LoginNote`n`nUse the desktop shortcut to start the application."
     
     exit 0
 } else {

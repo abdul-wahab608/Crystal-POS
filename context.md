@@ -25,11 +25,12 @@ Crystal/
 │   ├── customers/        Customer + CustomerTransaction
 │   ├── vendors/          Vendor + VendorProduct + VendorTransaction
 │   ├── products/         Product + ProductVariant + SizeRange + Color + ProductHistory
-│   ├── sales/            Sale + SaleItem  (bill_no, quantity_dozens)
-│   ├── purchases/        Purchase + PurchaseItem
-│   ├── raw_materials/    RawMaterial + RawMaterialUsage + RawMaterialPurchase
+│   ├── sales/            Sale + SaleItem  (bill_no, quantity in product unit)
+│   ├── purchases/        Purchase + PurchaseItem (raw-material and product lines)
+│   ├── raw_materials/    RawMaterial + RawMaterialUsage
+│   ├── production/       ProductionRun + ProductionRunItem + ProductionRunInput
 │   ├── assets/           Asset + AssetLog
-│   ├── payments/         Payment (links to Sale, RawMaterialPurchase, Customer, Vendor)
+│   ├── payments/         Payment (links to Sale, Purchase, Customer, Vendor)
 │   ├── bank_accounts/    BankAccount
 │   ├── reports/          Report (generated file metadata)
 │   ├── profit/           CostComponentType + ProductCost (profit analytics — see below)
@@ -62,7 +63,8 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 | `/assets/` | assets | assets.urls |
 | `/payments/` | payments | payments.urls |
 | `/reports/` | reports | reports.urls |
-| `/raw-materials/` | raw_materials | raw_materials.urls |
+| `/raw-materials/` | raw_materials | materials/, usage/ |
+| `/production/` | production | runs/ (list, create, retrieve, delete) |
 | `/bank-accounts/` | bank_accounts | bank_accounts.urls |
 | `/billing/` | core (urls_billing) | Invoice + Bill + BillingPayment |
 | `/profit/` | profit | cost-components/, product-costs/, summary/, trend/ |
@@ -95,11 +97,11 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 `name` (unique) · `created_at`
 
 ### products · `Product`
-`name` · `unit` · `cop` (cost of production) · `quantity` · `product_type` (MANUFACTURED/PURCHASED) · `size_range` FK → SizeRange · `last_updated` · `created_at`  
+`name` · `unit` · `cop` (cost per unit) · `quantity` (Decimal, in `unit`; equals sum of variant quantities when it has variants) · `product_type` (MANUFACTURED/PURCHASED) · `size_ranges` M2M → SizeRange (max 3) · `last_updated` · `created_at`. Unique (`name`, `unit`).  
 **No `available_stock` property** — ProductSerializer must NOT declare it as ReadOnlyField.
 
 ### products · `ProductVariant`
-`product` FK · `size_range` FK · `color` FK · `quantity_dozens` (PositiveIntegerField) · `created_at`
+`product` FK · `size_range` FK (must be in `product.size_ranges`) · `color` FK · `quantity` (Decimal, in product unit) · `created_at`. Unique (`product`, `size_range`, `color`).
 
 ### products · `ProductHistory`
 `product` FK · `change_type` · `quantity_change` · `date` · `reference` · `notes`
@@ -109,30 +111,30 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 **No `receipt_number` field** — use `bill_no`.
 
 ### sales · `SaleItem`
-`sale` FK · `product` FK · `size_range` FK · `color` FK · `quantity_dozens` (PositiveIntegerField) · `unit_price` · `subtotal`  
-**No `quantity` field** — use `quantity_dozens`.
+`sale` FK · `product` FK · `size_range` FK · `color` FK · `quantity` (Decimal, in product unit) · `unit_price` · `subtotal`  
+**No `quantity_dozens` field.** Duplicate variant lines in one sale are aggregated into one row.
 
 ### purchases · `Purchase`
-`vendor` FK · `date` · `total_amount` · `created_by` FK  
-**No `invoice_number`, no `payment_status`** — handled by `core.models_billing.Bill`.
+`vendor` FK · `date` · `invoice_number` (vendor's bill number, blank) · `total_amount` (server-computed) · `created_by` FK  
+**No `payment_status`** — handled by `core.models_billing.Bill`.
 
 ### purchases · `PurchaseItem`
-`purchase` FK · `product` FK · `quantity` · `unit_cost` · `subtotal`
+`purchase` FK · `product` FK (null) · `size_range` FK (null) · `color` FK (null) · `raw_material` FK → raw_materials.RawMaterial (null) · `quantity` (Decimal > 0, in the line's unit) · `unit_cost` · `subtotal`. Exactly one of `product` / `raw_material` is set (DB check constraint). Product lines require `size_range` (must be in `product.size_ranges`) and `color`; raw lines must not have them.
 
 ### raw_materials · `RawMaterial`
-`name` · `unit` · `quantity` · `reorder_level` · `created_at` · `updated_at`
+`name` · `unit` · `quantity` (stock on hand, maintained by signals) · `reorder_level` · `created_at` · `updated_at`. Unique (`name`, `unit`).
 
 ### raw_materials · `RawMaterialUsage`
-`raw_material` FK · `quantity_used` · `reference` · `notes` · `date_used`
+`raw_material` FK · `quantity_used` · `reference` · `notes` · `date_used`. Creating it decrements `RawMaterial.quantity`; deleting it restores it.
 
-### raw_materials · `RawMaterialPurchase`
-`raw_material` FK · `quantity_purchased` · `unit_price` · `total_amount` · `supplier` · `invoice_number` · `notes` · `purchase_date` · `payment` FK → payments.Payment
+### production · `ProductionRun`
+`date` (auto) · `reference` · `notes` · `created_by` FK. Children: `ProductionRunItem` (`run`, `variant` FK → ProductVariant, `quantity`) and `ProductionRunInput` (`run`, `raw_material` FK, `quantity`). Create increments variant/product stock and consumes raw materials (via `RawMaterialUsage` rows with reference `Production run #<id>`); delete reverses it.
 
 ### assets · `Asset`
 `name` · `description` · `category` · `type` · `value` · `current_value` · `purchase_value` · `purchase_date` · `location` · `status` (ACTIVE/INACTIVE/DISPOSED) · `created_at`
 
 ### payments · `Payment`
-`payment_type` (INCOMING/OUTGOING) · `payment_method` (CASH/CHEQUE/BANK_TRANSFER) · `amount` · `status` · `customer` FK · `vendor` FK · `bank_account` FK · `bank_name` · `account_number` · `sale` FK → sales.Sale · `purchase` FK → raw_materials.RawMaterialPurchase · `direct_payment_to_vendor` FK · `due_date` · `payment_date` · `reference` · `notes` · `original_amount` · `remaining_amount`
+`payment_type` (INCOMING/OUTGOING) · `payment_method` (CASH/CHEQUE/BANK_TRANSFER) · `amount` · `status` · `customer` FK · `vendor` FK · `bank_account` FK · `bank_name` · `account_number` · `sale` FK → sales.Sale · `purchase` FK → purchases.Purchase · `direct_payment_to_vendor` FK · `due_date` · `payment_date` · `reference` · `notes` · `original_amount` · `remaining_amount`
 
 ### bank_accounts · `BankAccount`
 `name` · `account_number` (unique) · `bank_name` · `branch` · `ifsc_code` · `is_active` · `created_at` · `updated_at`
@@ -150,7 +152,7 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 `name` (unique) · `is_system` (bool) · `created_at`. Seeded via migration `0002_seed_system_cost_components`: Raw Material, Electricity, Labor, Misc (`is_system=True`, cannot be renamed/deleted). Custom fields created via API always get `is_system=False` regardless of what the client sends — `CostComponentTypeViewSet.perform_create()` forces it.
 
 ### profit · `ProductCost`
-`product` FK → products.Product · `component_type` FK → CostComponentType · `amount_per_dozen` · `valid_from` (Date) · `created_at`. **Versioned, never edited in place** — `ProductCostViewSet` only allows `get`/`post`/`delete` (no put/patch), so changing a cost means POSTing a new row with a new `valid_from`. "Current" cost for a product as-of any date = latest row per component type with `valid_from <= that date` (see `profit/services.py::CostLookup`). If no `ProductCost` row exists yet for a product/date, falls back to `Product.cop` as the total unit cost — `product-costs/current/?product=<id>` exposes this via `using_fallback_cop`.
+`product` FK → products.Product · `component_type` FK → CostComponentType · `amount_per_dozen` (name kept from the old dozen model; the value is the cost per unit of the product's unit) · `valid_from` (Date) · `created_at`. **Versioned, never edited in place** — `ProductCostViewSet` only allows `get`/`post`/`delete` (no put/patch), so changing a cost means POSTing a new row with a new `valid_from`. "Current" cost for a product as-of any date = latest row per component type with `valid_from <= that date` (see `profit/services.py::CostLookup`). If no `ProductCost` row exists yet for a product/date, falls back to `Product.cop` as the total unit cost — `product-costs/current/?product=<id>` exposes this via `using_fallback_cop`.
 
 ## Frontend Module Map
 
@@ -162,14 +164,14 @@ Each module lives at `frontend/src/modules/<name>/` with this shape:
 | customers | `/customers` | CustomersView | customers.ts | Customer, CreateCustomerRequest |
 | vendors | `/vendors` | VendorsView | vendors.ts | Vendor (no email field) |
 | products | `/products` | ProductsView | products.ts + color.ts + sizeRange.ts + productVariant.ts | Product, ProductVariant, SizeRange, Color |
-| sales | `/sales` | SalesView | sales.ts + billing.ts | Sale, SaleItem (quantity_dozens not quantity) |
+| sales | `/sales` | SalesView | sales.ts + billing.ts | Sale, SaleItem (quantity in product unit) |
 | purchases | `/purchases` | PurchasesView | purchases.ts + billing.ts | Purchase, PurchaseItem |
 | raw_materials | `/raw-materials` | RawMaterialsView | raw_materials.ts | RawMaterial |
 | assets | `/assets` | AssetsView | assets.ts | Asset |
 | payments | `/payments` | PaymentsView | payments.ts | Payment |
 | reports | `/reports` | ReportsView | reports.ts | — |
 | users | `/users` | UsersView | users.ts | User |
-| bank_accounts | — | BankAccountsView | bank_accounts.ts | BankAccount |
+| bank_accounts | `/bank-accounts` | BankAccountsView | bank_accounts.ts | BankAccount |
 | profit | `/profit`, `/profit/costs` | ProfitAnalyticsView, CostManagementView | profit.ts | CostComponentType, ProductCost, ProfitSummaryRow, ProfitTrend |
 
 ## Shared Infrastructure (frontend/src/shared/)
@@ -210,20 +212,26 @@ Each module lives at `frontend/src/modules/<name>/` with this shape:
 ### bill_no generation (sales/models.py)
 Auto-generated in `Sale.save()` from the row's own auto-incremented `pk` (`BILL-{pk:04d}`) after the initial insert — concurrency-safe since `pk` uniqueness is enforced by the DB.
 
-### SaleItem quantities
-Backend field is `quantity_dozens` (PositiveIntegerField). Frontend must POST and read `quantity_dozens`, not `quantity`.
+### Quantities are in the product's unit
+Every quantity (`Product`, `ProductVariant`, `RawMaterial`, `SaleItem`, `PurchaseItem`, `ProductionRunItem`, `ProductionRunInput`) is in the unit of the product or raw material it belongs to (DOZEN, PCS, KG, POUND...). Nothing converts units and nothing sums quantities across units: reports and profit return per-unit quantities, and single-unit totals also carry `unit`, `quantity` and `profit_per_unit`, while mixed-unit totals return `null` for those and list `quantities` per unit.
 
 ### Sale identifier
 Field is `bill_no`. There is **no** `receipt_number` on Sale. Reports and displays must use `bill_no`.
 
 ### Purchase payment tracking
-`Purchase` model has **no** `invoice_number` or `payment_status`. Use `core.Invoice`/`core.Bill` models via `/api/billing/`.
+`Purchase` has no stored `payment_status`. It is computed from the outgoing `Payment` rows linked to the bill (`Payment.purchase`): `paid_amount`, `unpaid_amount` and `payment_status` (PAID / PARTIAL / UNPAID) are serialized on every purchase, and `GET /api/purchases/?unpaid=true` returns bills with a balance. `Purchase.invoice_number` stores the vendor's bill number. `core.Bill` (`/api/billing/`) is a separate, unused billing concept.
+
+### Purchase ledger and stock signals
+`purchases/signals.py`: each `Purchase` creates one PURCHASE `VendorTransaction` (amount = `total_amount`); deleting the purchase reverses that row and the vendor balance. Each `PurchaseItem` adds stock on create and removes it on delete (variant + product for product lines, `RawMaterial.quantity` for raw lines). `PurchaseViewSet.perform_destroy` refuses the delete if that stock has already been used. Vendor payments stay `VendorTransaction` PAYMENT rows from `payments/signals.py`.
+
+### RawMaterial stock
+`RawMaterial.quantity` is the single source of truth, maintained by the signals in `raw_materials/signals.py` (usage) and `purchases/signals.py` (purchase lines). There is no `available_stock` and no `RawMaterialPurchase`.
 
 ### Vendor/Customer email
 Neither `Vendor` nor `Customer` has an `email` field. Frontend search filters must not call `.toLowerCase()` on `vendor.email` or `customer.email`.
 
 ### Stock oversell
-`SaleSerializer.create()` validates `quantity_dozens <= variant.quantity_dozens` and raises `ValidationError` before writing anything — guarded. Note the guard only fires when a matching `ProductVariant` row exists; if none does, the deduction goes through unchecked.
+`SaleSerializer.create()` validates the aggregated quantity per variant against `variant.quantity` and raises `ValidationError` before writing anything. A line with no matching `ProductVariant` is refused.
 
 ### Color fallback
 `color_id` is now **required** per sale item — `SaleSerializer.create()` raises `ValidationError` if absent. No more silent `Color.objects.first()` fallback.
@@ -255,9 +263,6 @@ The installer bundles a python.org "embeddable" Python distribution with every `
 
 ### export_fields on ViewSets
 Do not define `export_fields` twice in the same ViewSet class body — Python silently uses the last definition.
-
-### Sales unit_price string-multiplication bug (found 2026-08-09, FIXED in commit 1cdca86)
-`sales/serializers.py::SaleSerializer.create()` does `subtotal=unit_price * quantity_dozens` where `unit_price` comes straight from the request's `items` list (`serializers.ListField`, not a nested serializer with type coercion). If `unit_price` ever arrives as a JSON string (e.g. `"100.00"` — the same DecimalField-as-string shape DRF itself produces everywhere else, and plausible from a future import/API caller), Python does **string repetition** instead of multiplication (`'100.00' * 10` → garbage), then crashes with `django.core.exceptions.ValidationError: value must be a decimal number` writing `SaleItem.subtotal`. The existing `SalesForm.vue` happens to send `unit_price` as a JS number so this doesn't fire in normal UI use today — found while seeding test data via a raw API call with a quoted decimal. Fix would be `Decimal(str(item_data['unit_price']))` before multiplying, matching the pattern already used in `purchases/serializers.py`.
 
 ### Port 8010 is final
 The backend, the frontend API base URL (`shared/api/baseUrl.ts`) and the installer scripts all use `8010`. Change them together if the port ever changes. Never bulk-kill processes by scanning `netstat` output for a port number: a wildcard-bound system service (for example Docker Desktop) matches the same grep and gets killed too.
@@ -304,21 +309,16 @@ backend/purchases/serializers.py + purchases/signals.py
   → invoice_number/payment_status typed into the form are still discarded (not real
     Purchase fields, tracked via core.Bill instead) — known limitation, not fixed
 
-Dead code, never imported anywhere (confirmed via grep, don't trust these as current):
-  modules/users/components/UserForm.vue
-  modules/assets/components/AssetTable.vue
-  modules/purchases/components/PurchaseForm.vue
-  views/BankAccountsView.vue  (backend /api/bank-accounts/ works fine — just no
-                                frontend route or nav entry exists)
+Retired in the 2026 restructure. Do not rebuild these from memory: the purchase form is `modules/purchases/views/PurchasesView.vue`, the bank accounts page is routed at `/bank-accounts`, and the catalog (units, size ranges, colors) is at `/catalog`.
 ```
 
 ### Profit Analytics (implemented 2026-08-09)
-`backend/profit/` computes profit per piece/per dozen from existing `SaleItem` rows — no `Sale`/`SaleItem` schema changes were needed (`quantity_dozens` and `subtotal` already cover quantity/revenue).
-- **Cost model**: see `CostComponentType`/`ProductCost` above. `profit/services.py::CostLookup` resolves the unit cost per dozen for a product as of a given date by summing the latest `ProductCost` row per component type with `valid_from <= that date`; falls back to `Product.cop` when no history exists yet.
-- **Aggregation**: `profit/services.py::compute_profit_rows()` builds one row per `SaleItem` (revenue/cost/profit), filterable by `product`, `size_range`, `color`, `city` (via `sale.customer.city` — Sale has no location field of its own), `year`, `month`, `season`, `date_from`/`date_to`. `aggregate()` groups rows by `product`/`month`/`season`/`year`/`location`; `build_trend()` shapes grouped rows for ApexCharts, with an optional `series` dimension for multi-line charts (e.g. one line per article).
+`backend/profit/` computes profit from existing `SaleItem` rows (`quantity` in the product's unit, and `subtotal` as revenue).
+- **Cost model** (per sale line, as of the sale date, `profit/services.py::CostLookup.resolve`): 1) MANUAL: `ProductCost` rows with `valid_from <= date`, latest per component; 2) PRODUCTION: the most recent usable production run for the product on or before the date, unit cost = sum(input qty × latest raw purchase unit cost) allocated to the product by its share of that run's output in the same unit; 3) COP: `Product.cop` if > 0; 4) MISSING: cost, profit and margin are null and `cost_missing` is true. A profit margin is never shown when cost is missing. Group rows carry the weakest `cost_source`.
+- **Aggregation**: `profit/services.py::compute_profit_rows()` builds one row per `SaleItem` (revenue/cost/profit), filterable by `product`, `size_range`, `color`, `city` (via `sale.customer.city` — Sale has no location field of its own), `year`, `month`, `season`, `date_from`/`date_to`. `aggregate()` groups rows by `product`/`month`/`season`/`year`/`location`; `build_trend()` shapes grouped rows for ApexCharts, with an optional `series` dimension for multi-line charts (e.g. one line per article). Quantities are per unit (see "Quantities are in the product's unit"); there is no piece/dozen toggle.
 - **Season buckets** (hardcoded, 4-season): Spring Mar–May, Summer Jun–Aug, Autumn Sep–Nov, Winter Dec–Feb — see `SEASON_BY_MONTH` in services.py.
 - **profit_ratio** = profit_amount / revenue (margin, not markup) throughout.
-- **API**: `GET /api/profit/summary/` (totals, or grouped rows if `?group_by=` given), `GET /api/profit/trend/` (chart-shaped, `?x=` required dimension + optional `?series=`), both accept `?unit=dozen|piece`. `cost-components/` and `product-costs/` are read-open (any authenticated user) but write-gated to Admin/Manager via `IsAuthenticatedForReadManagerForWrite` in `profit/views.py`.
+- **API**: `GET /api/profit/summary/` (totals, or grouped rows if `?group_by=` given), `GET /api/profit/trend/` (chart-shaped, `?x=` required dimension + optional `?series=`). `cost-components/` and `product-costs/` are read-open (any authenticated user) but write-gated to Admin/Manager via `IsAuthenticatedForReadManagerForWrite` in `profit/views.py`.
 - **Frontend**: `CostManagementView.vue` (`/profit/costs`) is where costs get entered per product — pick a product, see the current effective breakdown (or the `Product.cop` fallback banner), add dated cost entries, add custom cost fields. `ProfitAnalyticsView.vue` (`/profit`) has the filter bar, KPI cards, ApexCharts trend chart, and breakdown table. Both follow the DecimalField-as-string convention (wrap in `Number(...)`) and never prefix calls with `/api/`.
 - Full test coverage: `backend/profit/tests.py` (21 tests — cost versioning/fallback, aggregation math, permissions) and `frontend/src/modules/profit/stores/__tests__/profit.spec.ts` (9 tests). Verified end-to-end in a real browser (Selenium) against the offline-installed app: cost entry → sale → profit dashboard, including the piece/dozen unit toggle, with zero console errors.
 

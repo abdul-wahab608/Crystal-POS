@@ -1,5 +1,9 @@
+from decimal import Decimal
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Sum
 from customers.models import Customer
+from payments.models import Payment
 from django.contrib.auth import get_user_model
 
 
@@ -38,18 +42,34 @@ class Sale(models.Model):
             return
         super().save(*args, **kwargs)
 
+    def amount_paid(self):
+        return self.payments.filter(payment_type=Payment.INCOMING).aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+
+    def sync_payment_status(self):
+        paid = self.amount_paid()
+        if paid >= self.total_amount:
+            status = self.PAID
+        elif paid > 0:
+            status = self.PARTIAL
+        else:
+            status = self.UNPAID
+        Sale.objects.filter(pk=self.pk).update(payment_status=status)
+        self.payment_status = status
+
     def __str__(self):
         return f"{self.bill_no} - {self.customer.name}"
 
 
 class SaleItem(models.Model):
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
+    product = models.ForeignKey('products.Product', on_delete=models.PROTECT)
     size_range = models.ForeignKey('products.SizeRange', on_delete=models.PROTECT)
     color = models.ForeignKey('products.Color', on_delete=models.PROTECT)
-    quantity_dozens = models.PositiveIntegerField(default=0)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
 
     def __str__(self):
-        return f"{self.product.name} ({self.size_range.name}, {self.color.name}) x {self.quantity_dozens} dz"
+        return f"{self.product.name} ({self.size_range.name}, {self.color.name}) x {self.quantity} {self.product.unit}"

@@ -1,434 +1,132 @@
 <template>
   <div class="vendors-page">
-    <!-- Header -->
     <div class="page-header">
-      <h1 class="page-title">Vendors Management</h1>
-      <div class="header-actions">
-        <ExportButton entityType="vendors" />
-        <button v-if="authStore.canImport" @click="showImportWizard = true" class="btn-secondary">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-          </svg>
-          Import
-        </button>
-        <button @click="showAddForm = true" class="btn-primary">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-          </svg>
-          Add Vendor
-        </button>
-      </div>
+      <h1 class="page-title">Vendors</h1>
+      <button class="btn-primary" @click="openForm(null)">Add vendor</button>
     </div>
 
-    <!-- Batch Actions Toolbar -->
-    <BatchActionsToolbar 
-      entityType="vendors"
-      entityLabel="vendor"
-      @action-complete="handleBatchActionComplete"
+    <VendorStats :vendors="vendorsStore.vendors" />
+
+    <div class="toolbar">
+      <VendorFilters v-model="search" />
+    </div>
+
+    <p v-if="loadError" class="form-error">{{ loadError }}</p>
+
+    <VendorTable
+      :vendors="pageItems"
+      :expandedId="expandedId"
+      @toggle-ledger="toggleLedger"
+      @edit="openForm"
+      @delete="confirmDelete"
+    />
+    <PaginationBar
+      :page="page"
+      :totalPages="totalPages"
+      :total="total"
+      :pageSize="pageSize"
+      @update:page="goTo"
+      @update:pageSize="setPageSize"
     />
 
-    <!-- Loading State -->
-    <div v-if="store.loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading vendors...</p>
+    <div v-if="expandedVendor" class="ledger-panel">
+      <div class="ledger-title">Ledger: {{ expandedVendor.name }}</div>
+      <VendorLedger :key="expandedVendor.id" :vendor="expandedVendor" />
     </div>
 
-    <!-- Error State -->
-    <div v-else-if="store.error" class="error-state">
-      <p class="error-message">{{ store.error }}</p>
-      <button @click="store.fetchVendors()" class="btn-secondary">Try Again</button>
+    <div v-if="formOpen" class="modal-overlay" @click.self="closeForm">
+      <VendorForm :vendor="editing" @success="closeForm" @cancel="closeForm" />
     </div>
-
-    <!-- Content -->
-    <div v-else class="content">
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-number">{{ vendors.length }}</div>
-          <div class="stat-label">Total Vendors</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">{{ activeVendors }}</div>
-          <div class="stat-label">Active Vendors</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">{{ newThisMonth }}</div>
-          <div class="stat-label">New This Month</div>
-        </div>
-      </div>
-
-      <!-- Search -->
-      <div class="filters-section">
-        <input 
-          v-model="searchTerm" 
-          type="text" 
-          placeholder="Search vendors..." 
-          class="search-input"
-        />
-      </div>
-
-      <!-- Vendors Table -->
-      <div class="table-container">
-        <table class="vendors-table">
-          <thead>
-            <tr>
-              <th class="checkbox-col">
-                <SelectAllCheckbox 
-                  entityType="vendors" 
-                  :allIds="filteredVendors.map(v => v.id)" 
-                />
-              </th>
-              <th>Name</th>
-              <th>Contact Person</th>
-              <th>Phone</th>
-              <th>Address</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="vendor in filteredVendors" :key="vendor.id" class="table-row">
-              <td class="checkbox-col">
-                <SelectableCheckbox entityType="vendors" :id="vendor.id" />
-              </td>
-              <td>{{ vendor.name }}</td>
-              <td>{{ vendor.contact_person }}</td>
-              <td>{{ vendor.phone }}</td>
-              <td>{{ vendor.address }}</td>
-              <td>
-                <span :class="vendor.is_active ? 'status-active' : 'status-inactive'">
-                  {{ vendor.is_active ? 'Active' : 'Inactive' }}
-                </span>
-              </td>
-              <td>
-                <div class="actions">
-                  <button @click="editVendor(vendor)" class="action-btn edit">Edit</button>
-                  <button @click="deleteVendor(vendor.id)" class="action-btn delete">Delete</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- Empty State -->
-        <div v-if="filteredVendors.length === 0" class="empty-state">
-          <p>No vendors found.</p>
-          <button @click="showAddForm = true" class="btn-primary">Add Your First Vendor</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add/Edit Vendor Modal -->
-    <VendorForm
-      v-if="showAddForm || showEditForm"
-      :vendor="editingVendor"
-      @save="handleSave"
-      @close="closeForm"
-    />
-
-    <!-- Import Wizard -->
-    <ImportWizard 
-      v-if="showImportWizard"
-      entityType="vendors"
-      @close="handleImportClose"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useVendorsStore } from '../stores/vendors'
-import { useAuthStore } from '../../../shared/stores/auth'
-import { useBatchActionsStore } from '../../../shared/stores/batchActions'
-import type { Vendor } from '../types'
-import VendorForm from '../components/VendorForm.vue'
-import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
-import ExportButton from '../../../shared/components/ExportButton.vue'
-import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
-import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
-import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
+import { useToastStore } from '../../../shared/stores/toast'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import { errorMessageOf } from '../../raw_materials/utils/errorMessage'
+import VendorTable from '../components/VendorTable.vue'
+import VendorForm from '../components/VendorForm.vue'
+import VendorLedger from '../components/VendorLedger.vue'
+import VendorFilters from '../components/VendorFilters.vue'
+import VendorStats from '../components/VendorStats.vue'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
+import type { Vendor } from '../types'
 
-const store = useVendorsStore()
-const authStore = useAuthStore()
-const batchStore = useBatchActionsStore()
-const searchTerm = ref('')
-const showAddForm = ref(false)
-const showEditForm = ref(false)
-const showImportWizard = ref(false)
-const editingVendor = ref<Vendor | null>(null)
-const errorMessage = ref('')
+const vendorsStore = useVendorsStore()
+const toast = useToastStore()
+const route = useRoute()
 
-onMounted(() => {
-  store.fetchVendors()
-})
-
-const vendors = computed(() => store.vendors || [])
+const search = ref('')
+const loadError = ref('')
+const formOpen = ref(false)
+const editing = ref<Vendor | null>(null)
+const expandedId = ref<number | null>(null)
 
 const filteredVendors = computed(() => {
-  if (!searchTerm.value) return vendors.value
-  return vendors.value.filter(vendor => 
-    vendor.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    vendor.contact_person.toLowerCase().includes(searchTerm.value.toLowerCase())
+  const q = search.value.trim().toLowerCase()
+  if (!q) return vendorsStore.vendors
+  return vendorsStore.vendors.filter(vendor =>
+    vendor.name.toLowerCase().includes(q)
+    || (vendor.contact_person ?? '').toLowerCase().includes(q)
+    || (vendor.city ?? '').toLowerCase().includes(q)
+    || (vendor.phone ?? '').includes(q),
   )
 })
 
-const activeVendors = computed(() => 
-  vendors.value.filter(v => v.is_active).length
-)
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(filteredVendors)
+watch(search, reset)
 
-const newThisMonth = computed(() => {
-  const thisMonth = new Date().getMonth()
-  const thisYear = new Date().getFullYear()
-  return vendors.value.filter(v => {
-    const created = new Date(v.created_at)
-    return created.getMonth() === thisMonth && created.getFullYear() === thisYear
-  }).length
-})
+const expandedVendor = computed(() => vendorsStore.vendors.find(vendor => vendor.id === expandedId.value) ?? null)
 
-function editVendor(vendor: Vendor) {
-  editingVendor.value = vendor
-  showEditForm.value = true
-  showAddForm.value = false
-}
-
-function deleteVendor(id: number) {
-  if (confirm('Are you sure you want to delete this vendor?')) {
-    acceptQueued(() => store.deleteVendor(id))
-  }
-}
-
-async function handleSave(vendorData: any) {
-  try {
-    errorMessage.value = ''
-    if (showEditForm.value && editingVendor.value) {
-      await acceptQueued(() => store.updateVendor(editingVendor.value!.id, vendorData))
-    } else {
-      await acceptQueued(() => store.createVendor(vendorData))
-    }
-    closeForm()
-  } catch (error: any) {
-    // Extract error message from response
-    const message = error.response?.data?.error || error.message || 'Failed to save vendor'
-    errorMessage.value = message
-    alert(message)
-  }
+function openForm(vendor: Vendor | null) {
+  editing.value = vendor
+  formOpen.value = true
 }
 
 function closeForm() {
-  showAddForm.value = false
-  showEditForm.value = false
-  editingVendor.value = null
-  errorMessage.value = ''
+  formOpen.value = false
+  editing.value = null
 }
 
-function handleImportClose() {
-  showImportWizard.value = false
-  store.fetchVendors()
+function toggleLedger(vendor: Vendor) {
+  expandedId.value = expandedId.value === vendor.id ? null : vendor.id
 }
 
-function handleBatchActionComplete(action: string, result: any) {
-  store.fetchVendors()
-  console.log(`Batch ${action} completed:`, result.message)
+async function confirmDelete(vendor: Vendor) {
+  if (!window.confirm(`Delete vendor ${vendor.name}?`)) return
+  try {
+    await acceptQueued(() => vendorsStore.deleteVendor(vendor.id))
+    if (expandedId.value === vendor.id) expandedId.value = null
+  } catch (e) {
+    toast.error('Could not delete vendor', errorMessageOf(e))
+  }
 }
+
+onMounted(async () => {
+  try {
+    await vendorsStore.fetchVendors()
+    const requested = Number(route.query.vendor)
+    if (requested && vendorsStore.vendors.some(vendor => vendor.id === requested)) {
+      expandedId.value = requested
+    }
+  } catch (e) {
+    loadError.value = errorMessageOf(e)
+  }
+})
 </script>
 
 <style scoped>
-.vendors-page {
-  padding: 1.5rem;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.page-title {
-  font-size: 1.875rem;
-  font-weight: bold;
-  color: #111827;
-}
-
-.loading-state, .error-state {
-  text-align: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #2563eb;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-message {
-  color: #dc2626;
-  margin-bottom: 1rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #2563eb;
-}
-
-.stat-label {
-  color: #6b7280;
-  margin-top: 0.5rem;
-}
-
-.filters-section {
-  margin-bottom: 1.5rem;
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.table-container {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.vendors-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.vendors-table th {
-  background: #f9fafb;
-  padding: 0.75rem;
-  text-align: left;
-  font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.vendors-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.checkbox-col {
-  width: 40px;
-  text-align: center;
-}
-
-.table-row:hover {
-  background: #f9fafb;
-}
-
-.status-active {
-  background: #d1fae5;
-  color: #065f46;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-inactive {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  padding: 0.25rem 0.5rem;
-  border: none;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.action-btn.edit {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.action-btn.delete {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-}
-
-.btn-primary:hover {
-  background: #1d4ed8;
-}
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #374151;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: #d1d5db;
-}
-</style> 
+.vendors-page { padding: 1.5rem; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.page-title { font-size: 1.5rem; font-weight: 600; }
+.toolbar { max-width: 360px; margin: 1rem 0; }
+.form-error { color: #b91c1c; margin-bottom: 0.75rem; }
+.ledger-panel { margin-top: 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; overflow: hidden; }
+.ledger-title { padding: 0.75rem 1rem; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
+.btn-primary { cursor: pointer; border: none; }
+</style>

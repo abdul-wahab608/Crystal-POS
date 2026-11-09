@@ -25,7 +25,7 @@ class BulkExportMixinTests(APITestCase):
             username='admin',
             defaults={
                 'email': 'admin@example.com',
-                'is_superuser': True,
+                'is_superuser': True, 'role': User.ADMIN,
                 'is_staff': True
             }
         )
@@ -93,7 +93,7 @@ class BatchActionsMixinTests(APITestCase):
             username='admin',
             defaults={
                 'email': 'admin@example.com',
-                'is_superuser': True,
+                'is_superuser': True, 'role': User.ADMIN,
                 'is_staff': True
             }
         )
@@ -228,7 +228,7 @@ class BulkImportMixinTests(APITestCase):
             username='admin',
             defaults={
                 'email': 'admin@example.com',
-                'is_superuser': True,
+                'is_superuser': True, 'role': User.ADMIN,
                 'is_staff': True
             }
         )
@@ -270,7 +270,7 @@ class VendorBatchActionsTests(APITestCase):
             username='admin',
             defaults={
                 'email': 'admin@example.com',
-                'is_superuser': True,
+                'is_superuser': True, 'role': User.ADMIN,
                 'is_staff': True
             }
         )
@@ -321,7 +321,7 @@ class ProductBatchActionsTests(APITestCase):
             username='admin',
             defaults={
                 'email': 'admin@example.com',
-                'is_superuser': True,
+                'is_superuser': True, 'role': User.ADMIN,
                 'is_staff': True
             }
         )
@@ -340,15 +340,15 @@ class ProductBatchActionsTests(APITestCase):
             unit='PCS',
             quantity=100,
             cop=10.00,
-            size_range=self.size_range
         )
         self.product2 = Product.objects.create(
             name='Test Product 2',
             unit='KG',
             quantity=50,
             cop=25.00,
-            size_range=self.size_range
         )
+        self.product1.size_ranges.add(self.size_range)
+        self.product2.size_ranges.add(self.size_range)
     
     def test_product_export(self):
         """Test product export"""

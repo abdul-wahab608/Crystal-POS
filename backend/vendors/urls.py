@@ -8,7 +8,7 @@ from .views import VendorViewSet, VendorTransactionViewSet, VendorProductViewSet
 
 router = DefaultRouter()
 router.register(r'', VendorViewSet)
-router.register(r'vendor-transactions', VendorTransactionViewSet)
+router.register(r'vendor-transactions', VendorTransactionViewSet, basename='vendortransaction')
 router.register(r'vendor-products', VendorProductViewSet)
 
 # Explicit custom actions for mixins

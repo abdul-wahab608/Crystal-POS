@@ -1,608 +1,272 @@
 <template>
-  <div class="customers-page">
-    <!-- Header -->
-    <div class="page-header">
-      <h1 class="page-title">Customers Management</h1>
-      <div class="header-actions">
-        <ExportButton entityType="customers" />
-        <button v-if="authStore.canImport" @click="showImportWizard = true" class="btn-secondary">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-          </svg>
-          Import
-        </button>
-        <button @click="showAddForm = true" class="btn-primary">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-          </svg>
-          Add Customer
-        </button>
-      </div>
-    </div>
+  <div class="customers-view">
+    <header class="page-head">
+      <h1>Customers</h1>
+      <button type="button" class="primary-btn" @click="openForm(null)">Add customer</button>
+    </header>
 
-    <!-- Batch Actions Toolbar -->
-    <BatchActionsToolbar 
-      entityType="customers"
-      entityLabel="customer"
-      @action-complete="handleBatchActionComplete"
-    />
+    <section class="filters">
+      <input v-model="search" type="search" class="form-input" placeholder="Search name or phone" aria-label="Search customers" />
+      <select v-model="city" class="form-input" aria-label="City">
+        <option value="">All cities</option>
+        <option v-for="c in cities" :key="c" :value="c">{{ c }}</option>
+      </select>
+    </section>
 
-    <!-- Loading State -->
-    <div v-if="store.loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading customers...</p>
-    </div>
+    <p v-if="customersStore.error" class="form-error">{{ customersStore.error }}</p>
 
-    <!-- Error State -->
-    <div v-else-if="store.error" class="error-state">
-      <p class="error-message">{{ store.error }}</p>
-      <button @click="store.fetchCustomers()" class="btn-secondary">Try Again</button>
-    </div>
-
-    <!-- Content -->
-    <div v-else class="content">
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-number">{{ customers.length }}</div>
-          <div class="stat-label">Total Customers</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">{{ activeCustomers }}</div>
-          <div class="stat-label">Active Customers</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">{{ newThisMonth }}</div>
-          <div class="stat-label">New This Month</div>
-        </div>
-      </div>
-
-      <!-- Search -->
-      <div class="filters-section flex gap-4 items-center">
-        <input 
-          v-model="searchTerm" 
-          type="text" 
-          placeholder="Search customers..." 
-          class="search-input"
-        />
-        <select v-model="selectedCity" class="search-input w-48">
-          <option value="">All Cities</option>
-          <option v-for="city in uniqueCities" :key="city" :value="city">{{ city }}</option>
-        </select>
-      </div>
-
-      <!-- Customers Table -->
-      <div class="table-container">
-        <table class="customers-table">
+    <div class="layout">
+      <div class="table-wrap">
+        <table class="data-table">
           <thead>
             <tr>
-              <th class="checkbox-col">
-                <SelectAllCheckbox 
-                  entityType="customers" 
-                  :allIds="filteredCustomers.map(c => c.id)" 
-                />
-              </th>
               <th>Name</th>
-              <th>Phone</th>
-              <th>Address</th>
               <th>City</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>Phone</th>
+              <th>Type</th>
+              <th class="num">Balance</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="customer in filteredCustomers" :key="customer.id" class="table-row">
-              <td class="checkbox-col">
-                <SelectableCheckbox entityType="customers" :id="customer.id" />
-              </td>
+            <tr v-if="!filtered.length && !customersStore.loading">
+              <td colspan="5" class="empty">No customers match these filters.</td>
+            </tr>
+            <tr
+              v-for="customer in pageItems"
+              :key="customer.id"
+              :class="{ selected: customer.id === selectedId }"
+              class="clickable"
+              @click="select(customer.id)"
+            >
               <td>{{ customer.name }}</td>
-              <td>{{ customer.phone }}</td>
-              <td>{{ customer.address }}</td>
-              <td>{{ customer.city }}</td>
-              <td>
-                <span :class="customer.is_active ? 'status-active' : 'status-inactive'">
-                  {{ customer.is_active ? 'Active' : 'Inactive' }}
-                </span>
-              </td>
-              <td>
-                <div class="actions">
-                  <button @click="editCustomer(customer)" class="action-btn edit">Edit</button>
-                  <button @click="deleteCustomer(customer)" class="action-btn delete">Delete</button>
-                </div>
-              </td>
+              <td>{{ customer.city || '—' }}</td>
+              <td>{{ customer.phone || '—' }}</td>
+              <td>{{ customer.customer_type === 'WALK_IN' ? 'Walk-in' : 'Regular' }}</td>
+              <td class="num" :class="{ owed: Number(customer.balance) > 0 }">{{ customerBalanceLabel(customer.balance) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <PaginationBar
+          :page="page"
+          :totalPages="totalPages"
+          :total="total"
+          :pageSize="pageSize"
+          @update:page="goTo"
+          @update:pageSize="setPageSize"
+        />
+      </div>
+
+      <aside v-if="selected" class="detail" aria-label="Customer detail">
+        <header class="detail-head">
+          <div>
+            <h2>{{ selected.name }}</h2>
+            <p class="muted">{{ [selected.city, selected.phone].filter(Boolean).join(' · ') || 'No city or phone' }}</p>
+            <p class="balance">Balance <strong>{{ customerBalanceLabel(selected.balance) }}</strong></p>
+          </div>
+          <div class="detail-actions">
+            <button type="button" class="primary-btn" @click="showPayment = true">Record payment</button>
+            <button v-if="auth.isManager" type="button" class="secondary-btn" @click="openForm(selected)">Edit</button>
+            <button v-if="auth.isManager" type="button" class="danger-btn" @click="removeCustomer">Delete</button>
+          </div>
+        </header>
+
+        <p v-if="detailError" class="form-error">{{ detailError }}</p>
+
+        <h3>Sales</h3>
+        <table class="data-table compact">
+          <thead>
+            <tr><th>Bill</th><th>Date</th><th class="num">Total</th><th class="num">Balance</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="!sales.length"><td colspan="5" class="empty">No sales yet.</td></tr>
+            <tr v-for="sale in sales" :key="sale.id">
+              <td>{{ sale.bill_no }}</td>
+              <td>{{ formatDate(sale.date) }}</td>
+              <td class="num">{{ formatMoney(Number(sale.total_amount)) }}</td>
+              <td class="num">{{ formatMoney(Number(sale.balance)) }}</td>
+              <td><span class="badge" :class="sale.payment_status.toLowerCase()">{{ paymentStatusLabel(sale.payment_status) }}</span></td>
             </tr>
           </tbody>
         </table>
 
-        <!-- Empty State -->
-        <div v-if="filteredCustomers.length === 0" class="empty-state">
-          <p>No customers found.</p>
-          <button @click="showAddForm = true" class="btn-primary">Add Your First Customer</button>
-        </div>
+        <h3>Ledger</h3>
+        <table class="data-table compact">
+          <thead>
+            <tr><th>Date</th><th>Entry</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="!ledger.length"><td colspan="5" class="empty">No entries yet.</td></tr>
+            <tr v-for="row in ledger" :key="row.id">
+              <td>{{ formatDate(row.date) }}</td>
+              <td>{{ ledgerTypeLabel(row.type) }} <span class="muted">{{ row.reference }}</span></td>
+              <td class="num">{{ row.debit ? formatMoney(Number(row.debit)) : '' }}</td>
+              <td class="num">{{ row.credit ? formatMoney(Number(row.credit)) : '' }}</td>
+              <td class="num">{{ formatMoney(Number(row.balance)) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+    </div>
+
+    <div v-if="showForm" class="modal-backdrop" @click.self="closeForm">
+      <div class="modal" role="dialog" :aria-label="editing ? 'Edit customer' : 'Add customer'">
+        <h2>{{ editing ? 'Edit customer' : 'Add customer' }}</h2>
+        <CustomerForm :customer="editing" @saved="onSaved" @cancel="closeForm" />
       </div>
     </div>
 
-    <!-- Add/Edit Customer Modal -->
-    <div v-if="showAddForm || showEditForm" class="modal-overlay" @click.self="closeForm">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>{{ showEditForm ? 'Edit Customer' : 'Add New Customer' }}</h2>
-          <button @click="closeForm" class="close-btn">×</button>
-        </div>
-        
-        <form @submit.prevent="saveCustomer" class="modal-form">
-          <div class="form-group">
-            <label for="name">Customer Name</label>
-            <input 
-              id="name"
-              v-model="form.name" 
-              type="text" 
-              required 
-              class="form-input"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="phone">Phone</label>
-            <input 
-              id="phone"
-              v-model="form.phone" 
-              type="tel" 
-              class="form-input"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="address">Address</label>
-            <textarea 
-              id="address"
-              v-model="form.address" 
-              class="form-input"
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input 
-                v-model="form.is_active" 
-                type="checkbox" 
-                class="checkbox"
-              />
-              Active Customer
-            </label>
-          </div>
-          
-          <div class="form-actions">
-            <button type="button" @click="closeForm" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">
-              {{ showEditForm ? 'Update' : 'Create' }} Customer
-            </button>
-          </div>
-        </form>
+    <div v-if="showPayment && selected" class="modal-backdrop" @click.self="showPayment = false">
+      <div class="modal" role="dialog" aria-label="Record payment">
+        <h2>Record payment for {{ selected.name }}</h2>
+        <PaymentForm :preset-customer-id="selected.id" @saved="onPaymentSaved" @cancel="showPayment = false" />
       </div>
     </div>
-
-    <!-- Import Wizard -->
-    <ImportWizard 
-      v-if="showImportWizard"
-      entityType="customers"
-      @close="handleImportClose"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import CustomerForm from '../components/CustomerForm.vue'
+import PaymentForm from '../../payments/components/PaymentForm.vue'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
 import { useCustomersStore } from '../stores/customers'
+import { useSalesStore } from '../../sales/stores/sales'
 import { useAuthStore } from '../../../shared/stores/auth'
-import { useBatchActionsStore } from '../../../shared/stores/batchActions'
-import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
-import ExportButton from '../../../shared/components/ExportButton.vue'
-import BatchActionsToolbar from '../../../shared/components/BatchActionsToolbar.vue'
-import SelectAllCheckbox from '../../../shared/components/SelectAllCheckbox.vue'
-import SelectableCheckbox from '../../../shared/components/SelectableCheckbox.vue'
-import type { Customer, CreateCustomerRequest } from '../types'
-import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import { useToastStore } from '../../../shared/stores/toast'
+import { apiErrorMessage } from '../../../shared/utils/apiError'
+import { customerBalanceLabel, paymentStatusLabel } from '../../../shared/utils/statusLabels'
+import type { Customer, LedgerRow } from '../types'
+import type { Sale } from '../../sales/types'
 
-const store = useCustomersStore()
-const authStore = useAuthStore()
-const batchStore = useBatchActionsStore()
-const searchTerm = ref('')
-const selectedCity = ref('')
-const showAddForm = ref(false)
-const showEditForm = ref(false)
-const showImportWizard = ref(false)
-const editingCustomer = ref<Customer | null>(null)
+const customersStore = useCustomersStore()
+const salesStore = useSalesStore()
+const auth = useAuthStore()
+const toast = useToastStore()
 
-const form = ref<CreateCustomerRequest>({
-  name: '',
-  phone: '',
-  address: '',
-  is_active: true
+const search = ref('')
+const city = ref('')
+const selectedId = ref<number | null>(null)
+const sales = ref<Sale[]>([])
+const ledger = ref<LedgerRow[]>([])
+const detailError = ref('')
+const showForm = ref(false)
+const editing = ref<Customer | null>(null)
+const showPayment = ref(false)
+
+const selected = computed(() => customersStore.customers.find(c => c.id === selectedId.value) ?? null)
+
+const cities = computed(() => [...new Set(customersStore.customers.map(c => c.city).filter((c): c is string => !!c))].sort())
+
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  return customersStore.customers
+    .filter(c => !city.value || c.city === city.value)
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone ?? '').toLowerCase().includes(q))
 })
 
-onMounted(() => {
-  store.fetchCustomers()
-})
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(filtered)
+watch([search, city], reset)
 
-const customers = computed(() => store.customers || [])
-
-const filteredCustomers = computed(() => {
-  let filtered = customers.value
-  if (searchTerm.value) {
-    filtered = filtered.filter(customer => 
-      customer.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-      customer.phone?.toLowerCase().includes(searchTerm.value.toLowerCase())
-    )
-  }
-  if (selectedCity.value) {
-    filtered = filtered.filter(customer => customer.city === selectedCity.value)
-  }
-  return filtered
-})
-
-const uniqueCities = computed(() => {
-  const cities = customers.value.map(c => c.city).filter(Boolean)
-  return Array.from(new Set(cities))
-})
-
-const activeCustomers = computed(() => 
-  customers.value.filter(c => c.is_active).length
-)
-
-const newThisMonth = computed(() => {
-  const thisMonth = new Date().getMonth()
-  const thisYear = new Date().getFullYear()
-  return customers.value.filter(c => {
-    const created = new Date(c.created_at)
-    return created.getMonth() === thisMonth && created.getFullYear() === thisYear
-  }).length
-})
-
-function editCustomer(customer: Customer) {
-  editingCustomer.value = customer
-  form.value = { ...customer }
-  showEditForm.value = true
-}
-
-async function deleteCustomer(customer: Customer) {
-  if (confirm('Are you sure you want to delete this customer?')) {
-    try {
-      await acceptQueued(() => store.deleteCustomer(customer.id))
-    } catch (error) {
-    }
-  }
-}
-
-async function saveCustomer() {
+const loadDetail = async () => {
+  if (selectedId.value === null) return
+  detailError.value = ''
   try {
-    if (showEditForm.value) {
-      await acceptQueued(() => store.updateCustomer(editingCustomer.value!.id, form.value))
-    } else {
-      await acceptQueued(() => store.createCustomer(form.value))
-    }
-    closeForm()
-  } catch (error) {
+    const [ledgerData, customerSales] = await Promise.all([
+      customersStore.fetchLedger(selectedId.value),
+      salesStore.fetchCustomerSales(selectedId.value),
+    ])
+    ledger.value = ledgerData.rows
+    sales.value = customerSales
+  } catch (e) {
+    detailError.value = apiErrorMessage(e)
   }
 }
 
-function closeForm() {
-  showAddForm.value = false
-  showEditForm.value = false
-  editingCustomer.value = null
-  form.value = {
-    name: '',
-    phone: '',
-    address: '',
-    is_active: true
+const select = (id: number) => {
+  selectedId.value = id
+  loadDetail()
+}
+
+watch(selectedId, () => {
+  sales.value = []
+  ledger.value = []
+})
+
+const openForm = (customer: Customer | null) => {
+  editing.value = customer
+  showForm.value = true
+}
+
+const closeForm = () => {
+  showForm.value = false
+  editing.value = null
+}
+
+const onSaved = (customer: Customer | undefined) => {
+  closeForm()
+  if (customer && !editing.value) select(customer.id)
+  else loadDetail()
+}
+
+const onPaymentSaved = async () => {
+  showPayment.value = false
+  await customersStore.fetchCustomers()
+  await loadDetail()
+}
+
+const removeCustomer = async () => {
+  if (!selected.value) return
+  if (!window.confirm(`Delete ${selected.value.name}? This cannot be undone.`)) return
+  try {
+    await customersStore.deleteCustomer(selected.value.id)
+    selectedId.value = null
+    toast.success('Customer deleted')
+  } catch (e) {
+    detailError.value = apiErrorMessage(e)
   }
 }
 
-function handleImportClose() {
-  showImportWizard.value = false
-  // Refresh customer list after import
-  store.fetchCustomers()
-}
+const formatDate = (value: string) => new Date(value).toLocaleDateString('en-PK')
+const ledgerTypeLabel = (type: LedgerRow['type']) => ({ SALE: 'Sale', PAYMENT: 'Payment', REVERSAL: 'Reversal' })[type]
+const formatMoney = (value: number) => `₨${value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-function handleBatchActionComplete(action: string, result: any) {
-  // Refresh customer list after batch action
-  store.fetchCustomers()
-  // Show feedback to user (you can add toast notification here)
-  console.log(`Batch ${action} completed:`, result.message)
-}
+onMounted(() => customersStore.fetchCustomers())
 </script>
 
 <style scoped>
-.customers-page {
-  padding: 1.5rem;
+.customers-view { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
+.page-head { display: flex; justify-content: space-between; align-items: center; }
+.page-head h1 { margin: 0; font-size: 1.5rem; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.5rem; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1rem; align-items: start; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.data-table th, .data-table td { padding: 0.5rem; border-bottom: 1px solid #e5e7eb; text-align: left; white-space: nowrap; }
+.data-table.compact th, .data-table.compact td { padding: 0.35rem 0.4rem; }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.clickable { cursor: pointer; }
+.selected { background: rgba(37, 99, 235, 0.08); }
+.owed { color: #b42318; font-weight: 600; }
+.empty { text-align: center; opacity: 0.7; }
+.muted { opacity: 0.6; }
+.balance { margin: 0.25rem 0 0; }
+.form-error { color: #b42318; margin: 0; }
+.detail { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.detail-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.detail-head h2 { margin: 0; }
+.detail-head p { margin: 0.2rem 0 0; }
+.detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-start; }
+.detail h3 { margin: 0.75rem 0 0.25rem; font-size: 1rem; }
+.danger-btn { background: #b42318; color: #fff; border: none; border-radius: 6px; padding: 0.5rem 0.9rem; cursor: pointer; }
+.badge { padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #eee; }
+.badge.paid { background: #d1fae5; color: #065f46; }
+.badge.partial { background: #fef3c7; color: #92400e; }
+.badge.unpaid { background: #fee2e2; color: #991b1b; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 2rem 1rem; z-index: 50; }
+.modal { background: #fff; color: #111; border-radius: 10px; padding: 1.25rem; width: min(40rem, 100%); }
+.modal h2 { margin-top: 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
 }
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.page-title {
-  font-size: 1.875rem;
-  font-weight: bold;
-  color: #111827;
-}
-
-.loading-state, .error-state {
-  text-align: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #2563eb;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-message {
-  color: #dc2626;
-  margin-bottom: 1rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #2563eb;
-}
-
-.stat-label {
-  color: #6b7280;
-  margin-top: 0.5rem;
-}
-
-.filters-section {
-  margin-bottom: 1.5rem;
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.table-container {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.customers-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.customers-table th {
-  background: #f9fafb;
-  padding: 0.75rem;
-  text-align: left;
-  font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.customers-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.checkbox-col {
-  width: 40px;
-  text-align: center;
-}
-
-.table-row:hover {
-  background: #f9fafb;
-}
-
-.status-active {
-  background: #d1fae5;
-  color: #065f46;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-inactive {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  padding: 0.25rem 0.5rem;
-  border: none;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.action-btn.edit {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.action-btn.delete {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 500px;
-  margin: 1rem;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: #6b7280;
-  cursor: pointer;
-}
-
-.modal-form {
-  padding: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-}
-
-.checkbox {
-  width: 1rem;
-  height: 1rem;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-}
-
-.btn-primary:hover {
-  background: #1d4ed8;
-}
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #374151;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: #d1d5db;
-}
-</style> 
+</style>

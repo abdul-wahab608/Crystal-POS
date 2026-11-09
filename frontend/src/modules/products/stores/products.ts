@@ -26,13 +26,6 @@ export const useProductsStore = defineStore('products', {
     },
     async createProduct(payload: CreateProductRequest) {
       try {
-        // Check for existing product with same name, unit, and cop
-        const existing = this.products.find(p => p.name === payload.name && p.unit === payload.unit && Number(p.cop) === payload.cop)
-        if (existing) {
-          // Update the quantity (replace, not increment)
-          await this.updateProduct(existing.id, { ...payload })
-          return existing
-        }
         const res = await api.post<Product>('/products/', payload)
         if (!Array.isArray(this.products)) {
           this.products = []

@@ -30,17 +30,28 @@ export interface CurrentCostComponent {
   valid_from: string
 }
 
+export type CostSource = 'MANUAL' | 'PRODUCTION' | 'COP' | 'MISSING'
+
+export interface ProductionRunCost {
+  run_id: number
+  date: string
+  output_quantity: number | string
+  input_cost: number | string | null
+  unit_cost: number | string | null
+}
+
 export interface CurrentCost {
   product: number
   as_of: string
   components: CurrentCostComponent[]
-  total_per_dozen: number | string
-  using_fallback_cop: boolean
+  unit_cost: number | string | null
+  cost_source: CostSource
+  production_run_id: number | null
+  production_runs: ProductionRunCost[]
 }
 
-export type ProfitUnit = 'dozen' | 'piece'
-export type ProfitGroupBy = 'product' | 'month' | 'season' | 'year' | 'location'
-export type ProfitMetric = 'revenue' | 'cost' | 'profit_amount' | 'profit_ratio' | 'profit_per_unit' | 'quantity'
+export type ProfitGroupBy = 'product' | 'month' | 'season' | 'year' | 'location' | 'unit'
+export type ProfitMetric = 'revenue' | 'profit_amount' | 'quantity'
 
 export interface ProfitFilters {
   product?: number | string
@@ -54,14 +65,23 @@ export interface ProfitFilters {
   date_to?: string
 }
 
-export interface ProfitSummaryTotals {
-  unit: ProfitUnit
+export interface ProfitUnitQuantity {
+  unit: string
   quantity: number | string
+}
+
+export interface ProfitSummaryTotals {
   revenue: number | string
-  cost: number | string
-  profit_amount: number | string
-  profit_ratio: number | string
-  profit_per_unit: number | string
+  cost: number | string | null
+  profit_amount: number | string | null
+  profit_ratio: number | string | null
+  quantities: ProfitUnitQuantity[]
+  unit: string | null
+  quantity: number | string | null
+  profit_per_unit: number | string | null
+  cost_source: CostSource | null
+  cost_sources: CostSource[]
+  cost_missing: boolean
 }
 
 export interface ProfitSummaryRow extends ProfitSummaryTotals {
@@ -69,7 +89,14 @@ export interface ProfitSummaryRow extends ProfitSummaryTotals {
   label: string
 }
 
+export interface ProfitTrendSeries {
+  name: string
+  data: (number | null)[]
+  cost_source: (CostSource | null)[]
+  cost_missing: boolean[]
+}
+
 export interface ProfitTrend {
   categories: string[]
-  series: { name: string; data: number[] }[]
+  series: ProfitTrendSeries[]
 }

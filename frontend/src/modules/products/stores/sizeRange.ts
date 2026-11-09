@@ -29,7 +29,17 @@ export const useSizeRangeStore = defineStore('sizeRange', {
         this.error = null
       } catch (err: any) {
         if (isQueuedWrite(err)) return
-        this.error = err.message || 'Failed to add size range'
+        this.error = err.response?.data?.error || err.response?.data?.name?.[0] || err.message || 'Failed to add size range'
+      }
+    },
+    async renameSizeRange(id: number, name: string) {
+      try {
+        const res = await axios.patch<SizeRange>(`/products/size-ranges/${id}/`, { name })
+        this.sizeRanges = this.sizeRanges.map(sr => (sr.id === id ? res.data : sr))
+        this.error = null
+      } catch (err: any) {
+        if (isQueuedWrite(err)) return
+        this.error = err.response?.data?.name?.[0] || err.response?.data?.error || err.message || 'Failed to rename size range'
       }
     },
     async deleteSizeRange(id: number) {
@@ -39,7 +49,7 @@ export const useSizeRangeStore = defineStore('sizeRange', {
         this.error = null
       } catch (err: any) {
         if (isQueuedWrite(err)) return
-        this.error = err.message || 'Failed to delete size range'
+        this.error = err.response?.data?.error || err.response?.data?.name?.[0] || err.message || 'Failed to delete size range'
       }
     },
   },

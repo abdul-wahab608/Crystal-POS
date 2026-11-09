@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.core.validators import MinValueValidator
 
@@ -40,8 +41,8 @@ class VendorProduct(models.Model):
     raw_material = models.ForeignKey('raw_materials.RawMaterial', on_delete=models.CASCADE, null=True, blank=True, related_name='vendor_supplies')
     
     # Pricing information
-    unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
-    minimum_order_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0'))])
+    minimum_order_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(Decimal('0'))])
     lead_time_days = models.IntegerField(default=0, help_text="Lead time in days")
     
     # Status

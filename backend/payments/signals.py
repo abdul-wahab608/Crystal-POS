@@ -1,41 +1,54 @@
-from django.db.models.signals import post_save
+from django.db.models import F
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
+from customers.models import CustomerTransaction
+from vendors.models import Vendor, VendorTransaction
 from .models import Payment
-from sales.models import Sale
-from raw_materials.models import RawMaterialPurchase
 
-@receiver(post_save, sender=Sale)
-def create_sale_payment(sender, instance, created, **kwargs):
-    """Automatically create payment record when a sale is created"""
-    if created:
-        Payment.objects.create(
-            payment_type=Payment.INCOMING,
-            payment_method=Payment.CASH,  # Default, can be updated later
-            amount=instance.total_amount,
-            status=Payment.PENDING,
-            customer=instance.customer,
-            sale=instance,
-            original_amount=instance.total_amount,
-            remaining_amount=instance.total_amount,
-            # instance.bill_no isn't assigned yet at post_save time (Sale.save() sets it via a
-            # follow-up .update() after the initial insert) — derive it the same way the model does.
-            reference=f"Sale #BILL-{instance.pk:04d}",
-            notes=f"Auto-generated payment for sale BILL-{instance.pk:04d}"
+
+def _payment_reference(payment):
+    return f"Payment #{payment.pk}"
+
+
+@receiver(post_save, sender=Payment)
+def on_payment_saved(sender, instance, created, **kwargs):
+    if created and instance.payment_type == Payment.INCOMING and instance.customer_id:
+        CustomerTransaction.objects.create(
+            customer_id=instance.customer_id,
+            type=CustomerTransaction.PAYMENT,
+            amount=instance.amount,
+            reference=instance.reference or _payment_reference(instance),
+            notes=_payment_reference(instance),
         )
+    if created and instance.payment_type == Payment.OUTGOING and instance.vendor_id:
+        VendorTransaction.objects.create(
+            vendor_id=instance.vendor_id,
+            type=VendorTransaction.PAYMENT,
+            amount=instance.amount,
+            reference=_payment_reference(instance),
+            notes=_payment_reference(instance),
+        )
+    if instance.sale_id:
+        instance.sale.sync_payment_status()
 
-@receiver(post_save, sender=RawMaterialPurchase)
-def create_purchase_payment(sender, instance, created, **kwargs):
-    """Automatically create payment record when a purchase is created"""
-    if created:
-        Payment.objects.create(
-            payment_type=Payment.OUTGOING,
-            payment_method=Payment.CASH,  # Default, can be updated later
-            amount=instance.total_amount,
-            status=Payment.PENDING,
-            vendor_id=instance.supplier,  # Note: This assumes supplier is a vendor ID
-            purchase=instance,
-            original_amount=instance.total_amount,
-            remaining_amount=instance.total_amount,
-            reference=f"Purchase #{instance.id}",
-            notes=f"Auto-generated payment for purchase of {instance.raw_material.name}"
-        ) 
+
+@receiver(post_delete, sender=Payment)
+def on_payment_deleted(sender, instance, **kwargs):
+    if instance.payment_type == Payment.INCOMING and instance.customer_id:
+        CustomerTransaction.objects.create(
+            customer_id=instance.customer_id,
+            type=CustomerTransaction.REVERSAL,
+            reverses=CustomerTransaction.PAYMENT,
+            amount=instance.amount,
+            reference=f"Payment #{instance.pk} reversed",
+            notes=f"Reversal of deleted payment #{instance.pk}",
+        )
+    if instance.payment_type == Payment.OUTGOING and instance.vendor_id:
+        VendorTransaction.objects.filter(
+            vendor_id=instance.vendor_id,
+            type=VendorTransaction.PAYMENT,
+            reference=_payment_reference(instance),
+        ).delete()
+        Vendor.objects.filter(pk=instance.vendor_id).update(balance=F('balance') + instance.amount)
+    if instance.sale_id:
+        instance.sale.sync_payment_status()

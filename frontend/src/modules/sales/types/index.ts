@@ -1,55 +1,79 @@
+export type SaleType = 'WALK_IN' | 'PHONE_ORDER' | 'REGULAR'
+export type PaymentStatus = 'PAID' | 'PARTIAL' | 'UNPAID'
+export type PaymentMethod = 'CASH' | 'BANK' | 'CHEQUE' | 'PARCHI'
+
 export interface SaleItem {
   id: number
-  sale: number
   product: number
   product_name: string
   size_range: number
   size_range_name: string
   color: number
   color_name: string
-  quantity_dozens: number
-  unit_price: number
-  subtotal: number
+  quantity: string
+  unit_price: string
+  subtotal: string
 }
 
 export interface Sale {
   id: number
   bill_no: string
-  sale_type: 'WALK_IN' | 'PHONE_ORDER' | 'REGULAR'
+  sale_type: SaleType
   customer: number
   customer_name: string
-  customer_city?: string
-  total_amount: number
-  total: number
+  customer_city: string | null
   date: string
-  payment_status: 'PAID' | 'PARTIAL' | 'UNPAID'
-  sale_items: SaleItem[]
+  total_amount: string
+  amount_paid: string
+  balance: string
+  payment_status: PaymentStatus
   items_count: number
-  created_at?: string
-}
-
-export interface CreateSaleRequest {
-  customer: number
-  sale_type: 'WALK_IN' | 'PHONE_ORDER' | 'REGULAR'
-  total_amount: number
-  total?: number
-  date: string
-  payment_status: 'PAID' | 'PARTIAL' | 'UNPAID'
-  items: SaleItemRequest[]
+  sale_items: SaleItem[]
+  created_by: number | null
 }
 
 export interface SaleItemRequest {
   product_id: number
-  size_range_id?: number
-  color_id?: number
-  quantity_dozens: number
-  unit_price: number
+  size_range_id: number
+  color_id: number
+  quantity: string
+  unit_price: string
 }
 
-export interface UpdateSaleRequest extends Partial<CreateSaleRequest> {}
+export interface CreateSaleRequest {
+  customer: number
+  sale_type: SaleType
+  items: SaleItemRequest[]
+  amount_received?: string
+  payment_method?: PaymentMethod
+}
 
-export interface SaleStats {
-  total: number
-  totalAmount: number
-  averageAmount: number
+export interface SaleFilters {
+  customer?: number
+  payment_status?: PaymentStatus
+  date_from?: string
+  date_to?: string
+  search?: string
+}
+
+export interface CatalogVariant {
+  id: number
+  size_range: number
+  size_range_name: string
+  color: number
+  color_name: string
+  quantity: string
+}
+
+export interface CatalogProduct {
+  id: number
+  name: string
+  unit: string
+  size_ranges: number[]
+  variants: CatalogVariant[]
+}
+
+export interface CatalogSizeRange {
+  id: number
+  name: string
 }

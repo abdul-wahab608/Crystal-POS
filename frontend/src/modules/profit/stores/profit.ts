@@ -68,7 +68,7 @@ export const useProfitStore = defineStore('profit', () => {
     return response.data
   }
 
-  async function fetchSummary(filters: ProfitFilters & { unit?: string }, groupBy?: ProfitGroupBy) {
+  async function fetchSummary(filters: ProfitFilters, groupBy?: ProfitGroupBy) {
     loading.value = true
     try {
       const response = await api.get('/profit/summary/', {
@@ -85,7 +85,7 @@ export const useProfitStore = defineStore('profit', () => {
   }
 
   async function fetchTrend(
-    filters: ProfitFilters & { unit?: string },
+    filters: ProfitFilters,
     x: ProfitGroupBy,
     series?: ProfitGroupBy,
     metric: ProfitMetric = 'profit_amount',

@@ -1,7 +1,10 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from django.utils import timezone
+
 from products.models import Product
+from production.services import production_runs_by_product
 from sales.models import SaleItem
 from .models import ProductCost
 
@@ -14,6 +17,13 @@ SEASON_BY_MONTH = {
 SEASON_ORDER = ['Spring', 'Summer', 'Autumn', 'Winter']
 
 ZERO = Decimal('0')
+UNIT_METRICS = ('quantity', 'profit_per_unit')
+
+MANUAL = 'MANUAL'
+PRODUCTION = 'PRODUCTION'
+COP = 'COP'
+MISSING = 'MISSING'
+SOURCE_WEAKNESS = {MANUAL: 0, PRODUCTION: 1, COP: 2, MISSING: 3}
 
 
 def season_for_month(month):
@@ -21,20 +31,15 @@ def season_for_month(month):
 
 
 class CostLookup:
-    """Resolves the unit cost per dozen for a product as of a given date,
-    from versioned ProductCost history, falling back to Product.cop when
-    no cost history exists yet for that product/date (e.g. pre-history sales)."""
-
     def __init__(self, product_ids):
+        product_ids = set(product_ids)
         self._history = defaultdict(list)
-        rows = ProductCost.objects.filter(product_id__in=product_ids).order_by('valid_from')
-        for row in rows:
+        for row in ProductCost.objects.filter(product_id__in=product_ids).order_by('valid_from'):
             self._history[row.product_id].append((row.valid_from, row.component_type_id, row.amount_per_dozen))
-        self._cop_fallback = dict(Product.objects.filter(id__in=product_ids).values_list('id', 'cop'))
+        self._cop = dict(Product.objects.filter(id__in=product_ids).values_list('id', 'cop'))
+        self._production = production_runs_by_product(product_ids)
 
     def breakdown_as_of(self, product_id, as_of):
-        """component_id -> (amount_per_dozen, valid_from) for the latest cost of each
-        component type in effect on `as_of`."""
         latest_by_component = {}
         for valid_from, component_id, amount in self._history.get(product_id, ()):
             if valid_from > as_of:
@@ -42,19 +47,30 @@ class CostLookup:
             latest_by_component[component_id] = (amount, valid_from)
         return latest_by_component
 
-    def unit_cost_per_dozen(self, product_id, as_of):
+    def production_runs(self, product_id):
+        return self._production.get(product_id, [])
+
+    def production_run_as_of(self, product_id, as_of):
+        for run in self.production_runs(product_id):
+            if run['date'] <= as_of and run['unit_cost'] is not None:
+                return run
+        return None
+
+    def resolve(self, product_id, as_of):
         breakdown = self.breakdown_as_of(product_id, as_of)
         if breakdown:
-            return sum((amount for amount, _ in breakdown.values()), ZERO)
-        return self._cop_fallback.get(product_id) or ZERO
-
-    def cop_fallback(self, product_id):
-        return self._cop_fallback.get(product_id) or ZERO
+            return sum((amount for amount, _ in breakdown.values()), ZERO), MANUAL
+        run = self.production_run_as_of(product_id, as_of)
+        if run:
+            return run['unit_cost'], PRODUCTION
+        cop = self._cop.get(product_id) or ZERO
+        if cop > ZERO:
+            return cop, COP
+        return None, MISSING
 
 
 def compute_profit_rows(*, product_id=None, size_range_id=None, color_id=None, city=None,
-                         year=None, month=None, season=None, date_from=None, date_to=None):
-    """Returns one dict per SaleItem with revenue/cost/profit already computed."""
+                        year=None, month=None, season=None, date_from=None, date_to=None):
     qs = SaleItem.objects.select_related('sale', 'sale__customer', 'product')
     if product_id:
         qs = qs.filter(product_id=product_id)
@@ -75,17 +91,16 @@ def compute_profit_rows(*, product_id=None, size_range_id=None, color_id=None, c
 
     items = list(qs)
     if season:
-        items = [i for i in items if season_for_month(i.sale.date.month) == season]
+        items = [i for i in items if season_for_month(timezone.localtime(i.sale.date).month) == season]
 
     cost_lookup = CostLookup({i.product_id for i in items})
 
     rows = []
     for item in items:
-        as_of = item.sale.date.date()
-        unit_cost = cost_lookup.unit_cost_per_dozen(item.product_id, as_of)
-        cost = unit_cost * item.quantity_dozens
+        as_of = timezone.localdate(item.sale.date)
+        unit_cost, cost_source = cost_lookup.resolve(item.product_id, as_of)
         revenue = item.subtotal
-        profit_amount = revenue - cost
+        cost = None if unit_cost is None else unit_cost * item.quantity
         rows.append({
             'product_id': item.product_id,
             'product_name': item.product.name,
@@ -93,10 +108,12 @@ def compute_profit_rows(*, product_id=None, size_range_id=None, color_id=None, c
             'year': as_of.year,
             'month': as_of.month,
             'season': season_for_month(as_of.month),
-            'quantity_dozens': item.quantity_dozens,
+            'unit': item.product.unit,
+            'quantity': item.quantity,
             'revenue': revenue,
             'cost': cost,
-            'profit_amount': profit_amount,
+            'profit_amount': None if cost is None else revenue - cost,
+            'cost_source': cost_source,
         })
     return rows
 
@@ -107,6 +124,7 @@ GROUP_KEY_FUNCS = {
     'season': lambda r: (r['season'], r['season']),
     'year': lambda r: (r['year'], str(r['year'])),
     'location': lambda r: (r['city'], r['city']),
+    'unit': lambda r: (r['unit'], r['unit']),
 }
 
 
@@ -119,110 +137,131 @@ def _sorted_keys(group_by, categories_map):
     return sorted(keys, key=lambda k: str(categories_map[k]).lower())
 
 
-def _metric_value(bucket, metric, unit):
+def _new_bucket():
+    return {
+        'revenue': ZERO, 'cost': ZERO, 'profit_amount': ZERO,
+        'cost_sources': set(), 'quantities': defaultdict(lambda: ZERO),
+    }
+
+
+def _add_row(bucket, row):
+    bucket['revenue'] += row['revenue']
+    bucket['quantities'][row['unit']] += row['quantity']
+    bucket['cost_sources'].add(row['cost_source'])
+    if row['cost'] is not None:
+        bucket['cost'] += row['cost']
+        bucket['profit_amount'] += row['profit_amount']
+
+
+def _weakest_source(sources):
+    # A group is only as reliable as its least reliable row, so the group reports the weakest source.
+    if not sources:
+        return None
+    return max(sources, key=SOURCE_WEAKNESS.__getitem__)
+
+
+def _summarize(bucket):
+    quantities = bucket['quantities']
+    units = sorted(quantities)
     revenue = bucket['revenue']
-    cost = bucket['cost']
-    profit_amount = bucket['profit_amount']
-    qty = bucket['quantity_dozens'] * 12 if unit == 'piece' else bucket['quantity_dozens']
-    if metric == 'revenue':
-        return revenue
-    if metric == 'cost':
-        return cost
-    if metric == 'profit_ratio':
-        return (profit_amount / revenue) if revenue else ZERO
-    if metric == 'profit_per_unit':
-        return (profit_amount / qty) if qty else ZERO
-    if metric == 'quantity':
-        return qty
-    return profit_amount
+    cost_source = _weakest_source(bucket['cost_sources'])
+    cost_missing = cost_source == MISSING
+    profit_amount = None if cost_missing else bucket['profit_amount']
+    summary = {
+        'revenue': revenue,
+        'cost': None if cost_missing else bucket['cost'],
+        'profit_amount': profit_amount,
+        'profit_ratio': None if cost_missing else ((profit_amount / revenue) if revenue else ZERO),
+        'quantities': [{'unit': u, 'quantity': quantities[u]} for u in units],
+        'unit': None,
+        'quantity': None,
+        'profit_per_unit': None,
+        'cost_source': cost_source,
+        'cost_sources': sorted(bucket['cost_sources']),
+        'cost_missing': cost_missing,
+    }
+    if len(units) == 1:
+        unit = units[0]
+        qty = quantities[unit]
+        summary['unit'] = unit
+        summary['quantity'] = qty
+        if not cost_missing:
+            summary['profit_per_unit'] = (profit_amount / qty) if qty else ZERO
+    elif not units:
+        summary['quantity'] = ZERO
+    return summary
 
 
-def aggregate(rows, group_by, unit='dozen'):
-    """Groups rows by `group_by` (product/month/season/year/location), returns one
-    summary dict per group with revenue/cost/profit_amount/profit_ratio/profit_per_unit."""
+def aggregate(rows, group_by):
     keyfunc = GROUP_KEY_FUNCS[group_by]
     buckets = {}
     labels = {}
     for r in rows:
         key, label = keyfunc(r)
         labels[key] = label
-        b = buckets.setdefault(key, {'revenue': ZERO, 'cost': ZERO, 'profit_amount': ZERO, 'quantity_dozens': 0})
-        b['revenue'] += r['revenue']
-        b['cost'] += r['cost']
-        b['profit_amount'] += r['profit_amount']
-        b['quantity_dozens'] += r['quantity_dozens']
+        _add_row(buckets.setdefault(key, _new_bucket()), r)
 
     result = []
     for key in _sorted_keys(group_by, labels):
-        b = buckets[key]
-        qty = b['quantity_dozens'] * 12 if unit == 'piece' else b['quantity_dozens']
-        result.append({
-            'key': key,
-            'label': labels[key],
-            'unit': unit,
-            'quantity': qty,
-            'revenue': b['revenue'],
-            'cost': b['cost'],
-            'profit_amount': b['profit_amount'],
-            'profit_ratio': (b['profit_amount'] / b['revenue']) if b['revenue'] else ZERO,
-            'profit_per_unit': (b['profit_amount'] / qty) if qty else ZERO,
-        })
+        result.append({'key': key, 'label': labels[key], **_summarize(buckets[key])})
     return result
 
 
-def summary_totals(rows, unit='dozen'):
-    revenue = sum((r['revenue'] for r in rows), ZERO)
-    cost = sum((r['cost'] for r in rows), ZERO)
-    profit_amount = revenue - cost
-    quantity_dozens = sum((r['quantity_dozens'] for r in rows), 0)
-    qty = quantity_dozens * 12 if unit == 'piece' else quantity_dozens
+def summary_totals(rows):
+    bucket = _new_bucket()
+    for r in rows:
+        _add_row(bucket, r)
+    return _summarize(bucket)
+
+
+def _point(summary, metric):
+    value = summary[metric]
+    return (None if value is None else float(value)), summary['cost_source'], summary['cost_missing']
+
+
+def _series_block(name, points):
     return {
-        'unit': unit,
-        'quantity': qty,
-        'revenue': revenue,
-        'cost': cost,
-        'profit_amount': profit_amount,
-        'profit_ratio': (profit_amount / revenue) if revenue else ZERO,
-        'profit_per_unit': (profit_amount / qty) if qty else ZERO,
+        'name': name,
+        'data': [p[0] for p in points],
+        'cost_source': [p[1] for p in points],
+        'cost_missing': [p[2] for p in points],
     }
 
 
-def build_trend(rows, x, series=None, unit='dozen', metric='profit_amount'):
-    """Shapes aggregated rows for a chart: {categories: [...], series: [{name, data}]}."""
+def build_trend(rows, x, series=None, metric='profit_amount'):
     x_keyfunc = GROUP_KEY_FUNCS[x]
+    if metric in UNIT_METRICS and not series:
+        series = 'unit'
 
     if not series:
-        agg = aggregate(rows, x, unit)
+        agg = aggregate(rows, x)
         return {
             'categories': [r['label'] for r in agg],
-            'series': [{'name': metric, 'data': [float(r[metric]) for r in agg]}],
+            'series': [_series_block(metric, [_point(r, metric) for r in agg])],
         }
 
     series_keyfunc = GROUP_KEY_FUNCS[series]
     x_labels = {}
     series_labels = {}
-    data = defaultdict(lambda: defaultdict(lambda: {'revenue': ZERO, 'cost': ZERO, 'profit_amount': ZERO, 'quantity_dozens': 0}))
+    data = defaultdict(dict)
 
     for r in rows:
         xk, xl = x_keyfunc(r)
         sk, sl = series_keyfunc(r)
         x_labels[xk] = xl
         series_labels[sk] = sl
-        b = data[sk][xk]
-        b['revenue'] += r['revenue']
-        b['cost'] += r['cost']
-        b['profit_amount'] += r['profit_amount']
-        b['quantity_dozens'] += r['quantity_dozens']
+        data[sk].setdefault(xk, _new_bucket())
+        _add_row(data[sk][xk], r)
 
     x_keys = _sorted_keys(x, x_labels)
     categories = [x_labels[k] for k in x_keys]
 
     result_series = []
     for sk in sorted(series_labels.keys(), key=lambda k: str(series_labels[k]).lower()):
-        values = []
+        points = []
         for xk in x_keys:
             bucket = data[sk].get(xk)
-            values.append(float(_metric_value(bucket, metric, unit)) if bucket else 0.0)
-        result_series.append({'name': series_labels[sk], 'data': values})
+            points.append(_point(_summarize(bucket), metric) if bucket else (0.0, None, False))
+        result_series.append(_series_block(series_labels[sk], points))
 
     return {'categories': categories, 'series': result_series}

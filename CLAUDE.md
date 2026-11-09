@@ -24,8 +24,12 @@ Only grep/read source files when context.md doesn't have enough detail for the t
 - `AUTH_USER_MODEL = 'users.User'` — always import User via `get_user_model()`.
 - Bulk import actions (`download_template`, `bulk_import`, `get_import_fields`) live in `core.mixins.BulkImportMixin`. Do not reimplement them on individual ViewSets.
 - `Sale.bill_no` is auto-generated in `save()` — not concurrency-safe. Don't add a second generation path.
-- `SaleItem` uses `quantity_dozens` (PositiveIntegerField). Never use `quantity` on SaleItem.
-- `Purchase` has no `invoice_number` or `payment_status` — those are on `core.Bill` via `/api/billing/`.
+- Quantities are always in the unit of the product or raw material they belong to (`Product.unit`, `RawMaterial.unit`). Never convert them (no `* 12`) and never sum quantities across different units.
+- Stock fields are all named `quantity` (`Product`, `ProductVariant`, `RawMaterial`, `SaleItem`, `PurchaseItem`, `ProductionRunItem`). `quantity_dozens` no longer exists.
+- `Product.size_ranges` is an M2M (max 3). `ProductVariant.size_range` must be one of the product's size ranges.
+- Purchases are one document with raw-material and product lines. `RawMaterialPurchase` is gone; raw-material buying goes through `/api/purchases/`.
+- Manufactured stock comes from `production` runs (`/api/production/runs/`), which consume raw materials.
+- `Purchase.invoice_number` is the vendor's bill number. `Purchase` has no stored `payment_status`; it is computed from the outgoing `Payment` rows linked to the bill (`paid_amount`, `unpaid_amount`, `payment_status` in the serializer).
 - `Vendor` and `Customer` have no `email` field.
 - `Product` has no `available_stock` property — do not add it to serializers as ReadOnlyField.
 
@@ -37,7 +41,7 @@ Only grep/read source files when context.md doesn't have enough detail for the t
 - Auth token: `localStorage['auth_token']`. Auth store: `shared/stores/auth.ts`.
 - Offline: GET responses cached in IndexedDB and served when the backend is unreachable. Writes made while unreachable are queued in IndexedDB and reject with `QueuedWriteError` — wrap write calls with `acceptQueued()` (`shared/utils/queuedWrite.ts`) so a queued save is never re-submitted.
 - Router: web history only (Electron was removed). Routes defined in `router/index.ts`.
-- `SaleItem` quantities are `quantity_dozens` — never render or POST as `quantity`.
+- `SaleItem` quantities are `quantity` in the product's unit — show the unit next to it.
 - `Sale` identifier is `bill_no` — never reference `receipt_number`.
 - `vendor.email` and `customer.email` do not exist — never call `.toLowerCase()` on them.
 - `SelectAllCheckbox` `:allIds` prop — don't pass a fresh `.map()` array inline in the template (causes child re-render on every tick).

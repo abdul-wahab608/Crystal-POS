@@ -1,5 +1,4 @@
 from datetime import date
-from decimal import Decimal
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -57,7 +56,6 @@ class ProductCostViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def current(self, request):
-        """Current effective cost per component type for a product, as of today (or ?as_of=YYYY-MM-DD)."""
         product_id = request.query_params.get('product')
         if not product_id:
             return Response({'error': 'product query param is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -80,15 +78,26 @@ class ProductCostViewSet(viewsets.ModelViewSet):
             for component_id, (amount, valid_from) in breakdown.items()
         ]
 
-        using_fallback = not bool(components)
-        total = sum((c['amount_per_dozen'] for c in components), Decimal('0')) if components else lookup.cop_fallback(product_id)
+        unit_cost, cost_source = lookup.resolve(product_id, as_of)
+        used_run = lookup.production_run_as_of(product_id, as_of)
 
         return Response({
             'product': product_id,
             'as_of': as_of,
             'components': components,
-            'total_per_dozen': total,
-            'using_fallback_cop': using_fallback,
+            'unit_cost': unit_cost,
+            'cost_source': cost_source,
+            'production_run_id': used_run['run_id'] if used_run else None,
+            'production_runs': [
+                {
+                    'run_id': run['run_id'],
+                    'date': run['date'],
+                    'output_quantity': run['output_quantity'],
+                    'input_cost': run['input_cost'],
+                    'unit_cost': run['unit_cost'],
+                }
+                for run in lookup.production_runs(product_id)
+            ],
         })
 
 
@@ -109,29 +118,27 @@ class ProfitFilterMixin:
 
 
 class ProfitSummaryView(ProfitFilterMixin, APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManagerUser]
 
     def get(self, request):
         filters = self._parse_filters(request)
-        unit = request.query_params.get('unit', 'dozen')
         group_by = request.query_params.get('group_by')
 
         rows = compute_profit_rows(**filters)
 
         if group_by:
-            return Response({'unit': unit, 'group_by': group_by, 'rows': aggregate(rows, group_by, unit)})
-        return Response(summary_totals(rows, unit))
+            return Response({'group_by': group_by, 'rows': aggregate(rows, group_by)})
+        return Response(summary_totals(rows))
 
 
 class ProfitTrendView(ProfitFilterMixin, APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManagerUser]
 
     def get(self, request):
         filters = self._parse_filters(request)
-        unit = request.query_params.get('unit', 'dozen')
         metric = request.query_params.get('metric', 'profit_amount')
         x = request.query_params.get('x', 'month')
         series = request.query_params.get('series') or None
 
         rows = compute_profit_rows(**filters)
-        return Response(build_trend(rows, x, series=series, unit=unit, metric=metric))
+        return Response(build_trend(rows, x, series=series, metric=metric))

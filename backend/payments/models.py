@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from customers.models import Customer
 from vendors.models import Vendor
 from bank_accounts.models import BankAccount
@@ -55,14 +56,14 @@ class Payment(models.Model):
     
     # Transaction links (for automatic payments)
     sale = models.ForeignKey('sales.Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
-    purchase = models.ForeignKey('raw_materials.RawMaterialPurchase', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    purchase = models.ForeignKey('purchases.Purchase', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
     
     # Direct payment tracking (client paying vendor directly)
     direct_payment_to_vendor = models.ForeignKey(Vendor, on_delete=models.SET_NULL, null=True, blank=True, related_name='direct_payments')
     
     # Timing and tracking
     due_date = models.DateField(null=True, blank=True)
-    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_date = models.DateTimeField(default=timezone.now)
     reference = models.CharField(max_length=255, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
     

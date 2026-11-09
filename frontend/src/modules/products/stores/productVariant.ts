@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
 import axios from '../../../shared/api/axios'
-import type { ProductVariant } from '../types'
-import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
+import type { VariantRecord } from '../types'
 
 export const useProductVariantStore = defineStore('productVariant', {
   state: () => ({
-    variants: [] as ProductVariant[],
+    variants: [] as VariantRecord[],
     loading: false,
     error: null as string | null,
   }),
@@ -22,26 +21,6 @@ export const useProductVariantStore = defineStore('productVariant', {
         this.error = err.message || 'Failed to fetch variants'
       } finally {
         this.loading = false
-      }
-    },
-    async addVariant(variant: Partial<ProductVariant>) {
-      try {
-        const res = await axios.post('/products/product-variants/', variant)
-        this.variants.push(res.data)
-        this.error = null
-      } catch (err: any) {
-        if (isQueuedWrite(err)) return
-        this.error = err.message || 'Failed to add variant'
-      }
-    },
-    async deleteVariant(id: number) {
-      try {
-        await axios.delete(`/products/product-variants/${id}/`)
-        this.variants = this.variants.filter(v => v.id !== id)
-        this.error = null
-      } catch (err: any) {
-        if (isQueuedWrite(err)) return
-        this.error = err.message || 'Failed to delete variant'
       }
     },
   },

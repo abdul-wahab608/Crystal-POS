@@ -6,7 +6,18 @@ from rest_framework.views import APIView
 from .models import Report
 from .serializers import ReportSerializer
 from sales.models import SaleItem
+from decimal import Decimal
+
 from django.db.models import Sum, Count, F
+from django.utils import timezone
+
+from customers.models import Customer
+from payments.models import Payment
+from products.models import Product
+from purchases.models import Purchase
+from raw_materials.models import RawMaterial
+from sales.models import Sale
+from vendors.models import Vendor
 
 
 class ReportViewSet(viewsets.ModelViewSet):
@@ -23,9 +34,9 @@ def _base_sale_items(request):
     start = request.query_params.get('start_date')
     end = request.query_params.get('end_date')
     if start:
-        qs = qs.filter(sale__date__gte=start)
+        qs = qs.filter(sale__date__date__gte=start)
     if end:
-        qs = qs.filter(sale__date__lte=end)
+        qs = qs.filter(sale__date__date__lte=end)
     return qs
 
 
@@ -36,10 +47,10 @@ def sales_report(request):
     qs = _base_sale_items(request)
     data = (
         qs
-        .values(date=F('sale__date__date'))
+        .values(date=F('sale__date__date'), unit=F('product__unit'))
         .annotate(
-            total_sales=Sum(F('unit_price') * F('quantity_dozens')),
-            total_dozens=Sum('quantity_dozens'),
+            total_sales=Sum('subtotal'),
+            total_quantity=Sum('quantity'),
             transaction_count=Count('sale', distinct=True),
         )
         .order_by('-date')
@@ -50,12 +61,12 @@ def sales_report(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def inventory_report(request):
-    """Stock levels per product variant in dozens."""
+    """Stock levels per product variant, in each product's unit."""
     from products.models import ProductVariant
     variants = ProductVariant.objects.select_related('product', 'size_range', 'color').filter(
-        quantity_dozens__gte=0
+        quantity__gte=0
     ).values(
-        'product__name', 'size_range__name', 'color__name', 'quantity_dozens'
+        'product__name', 'size_range__name', 'color__name', 'product__unit', 'quantity'
     ).order_by('product__name', 'size_range__name', 'color__name')
     return Response(list(variants))
 
@@ -71,10 +82,10 @@ def customer_report(request):
 
     data = (
         qs
-        .values('sale__customer_id', 'sale__customer__name', 'sale__customer__city')
+        .values('sale__customer_id', 'sale__customer__name', 'sale__customer__city', 'product__unit')
         .annotate(
-            total_sales=Sum(F('unit_price') * F('quantity_dozens')),
-            total_dozens=Sum('quantity_dozens'),
+            total_sales=Sum('subtotal'),
+            total_quantity=Sum('quantity'),
             sale_count=Count('sale', distinct=True),
         )
         .order_by('-total_sales')
@@ -84,8 +95,9 @@ def customer_report(request):
             'customer_id': row['sale__customer_id'],
             'customer_name': row['sale__customer__name'],
             'city': row['sale__customer__city'] or '',
-            'total_sales': float(row['total_sales'] or 0),
-            'total_dozens': row['total_dozens'] or 0,
+            'unit': row['product__unit'],
+            'total_sales': float(round(row['total_sales'] or 0, 2)),
+            'total_quantity': row['total_quantity'] or 0,
             'sale_count': row['sale_count'] or 0,
         }
         for row in data
@@ -100,10 +112,10 @@ def area_report(request):
     qs = _base_sale_items(request)
     data = (
         qs
-        .values(area=F('sale__customer__city'))
+        .values(area=F('sale__customer__city'), unit=F('product__unit'))
         .annotate(
-            total_sales=Sum(F('unit_price') * F('quantity_dozens')),
-            total_dozens=Sum('quantity_dozens'),
+            total_sales=Sum('subtotal'),
+            total_quantity=Sum('quantity'),
             customer_count=Count('sale__customer', distinct=True),
             sale_count=Count('sale', distinct=True),
         )
@@ -112,8 +124,9 @@ def area_report(request):
     result = [
         {
             'area': row['area'] or 'Unknown',
-            'total_sales': float(row['total_sales'] or 0),
-            'total_dozens': row['total_dozens'] or 0,
+            'unit': row['unit'],
+            'total_sales': float(round(row['total_sales'] or 0, 2)),
+            'total_quantity': row['total_quantity'] or 0,
             'customer_count': row['customer_count'] or 0,
             'sale_count': row['sale_count'] or 0,
         }
@@ -135,19 +148,19 @@ def article_report(request):
         qs
         .values('product__id', 'product__name', 'product__unit')
         .annotate(
-            total_sales=Sum(F('unit_price') * F('quantity_dozens')),
-            total_dozens=Sum('quantity_dozens'),
+            total_sales=Sum('subtotal'),
+            total_quantity=Sum('quantity'),
             sale_count=Count('sale', distinct=True),
         )
-        .order_by('-total_dozens')
+        .order_by('-total_quantity')
     )
     result = [
         {
             'product_id': row['product__id'],
             'product_name': row['product__name'],
             'unit': row['product__unit'],
-            'total_sales': float(row['total_sales'] or 0),
-            'total_dozens': row['total_dozens'] or 0,
+            'total_sales': float(round(row['total_sales'] or 0, 2)),
+            'total_quantity': row['total_quantity'] or 0,
             'sale_count': row['sale_count'] or 0,
         }
         for row in data
@@ -182,8 +195,8 @@ class CustomerSalesReportView(APIView):
                 'product__name', 'size_range__name', 'color__name',
             )
             .annotate(
-                total_sales=Sum(F('unit_price') * F('quantity_dozens')),
-                total_dozens=Sum('quantity_dozens'),
+                total_sales=Sum('subtotal'),
+                total_quantity=Sum('quantity'),
             )
             .order_by('sale__customer__name', 'product__name')
         )
@@ -195,9 +208,44 @@ class CustomerSalesReportView(APIView):
                 'product': row['product__name'],
                 'size_range': row['size_range__name'],
                 'color': row['color__name'],
-                'total_sales': float(row['total_sales'] or 0),
-                'total_dozens': row['total_dozens'] or 0,
+                'total_sales': float(round(row['total_sales'] or 0, 2)),
+                'total_quantity': row['total_quantity'] or 0,
             }
             for row in data
         ]
         return Response(result)
+
+
+def _sum(queryset, field):
+    return queryset.aggregate(total=Sum(field))['total'] or Decimal('0')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_summary(request):
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+
+    sales = Sale.objects.all()
+    received = Payment.objects.filter(payment_type=Payment.INCOMING)
+
+    def period(start, end=None):
+        sale_qs = sales.filter(date__date__gte=start, date__date__lte=end or today)
+        payment_qs = received.filter(payment_date__date__gte=start, payment_date__date__lte=end or today)
+        return {
+            'sales_total': _sum(sale_qs, 'total_amount'),
+            'sales_count': sale_qs.count(),
+            'received_total': _sum(payment_qs, 'amount'),
+        }
+
+    return Response({
+        'today': {'date': today, **period(today, today)},
+        'month': {'start': month_start, 'end': today, **period(month_start)},
+        'outstanding_customer_balance': _sum(Customer.objects.filter(balance__gt=0), 'balance'),
+        'vendor_payables': _sum(Vendor.objects.filter(balance__gt=0), 'balance'),
+        'vendor_bills_unpaid': _sum(Purchase.objects.all(), 'total_amount') - _sum(
+            Payment.objects.filter(payment_type=Payment.OUTGOING, purchase__isnull=False), 'amount'
+        ),
+        'low_stock_raw_materials': RawMaterial.objects.filter(quantity__lte=F('reorder_level')).count(),
+        'out_of_stock_products': Product.objects.filter(quantity__lte=0).count(),
+    })

@@ -1,8 +1,7 @@
 from rest_framework.routers import DefaultRouter
-from .views import SaleViewSet, SaleItemViewSet
+from .views import SaleViewSet
 
 router = DefaultRouter()
 router.register(r'', SaleViewSet)
-router.register(r'sale-items', SaleItemViewSet)
 
-urlpatterns = router.urls 
+urlpatterns = router.urls

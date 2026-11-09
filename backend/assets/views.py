@@ -71,6 +71,12 @@ class AssetViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, viewsets
         },
     }
     
+    def _transform_row(self, row_data):
+        transformed, new_units = super()._transform_row(row_data)
+        if 'value' in transformed:
+            transformed['current_value'] = transformed.pop('value')
+        return transformed, new_units
+
     # Export configuration
     export_filename = 'assets'
     export_fields = {
@@ -78,7 +84,7 @@ class AssetViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, viewsets
         'description': {'label': 'Description', 'type': 'string'},
         'category': {'label': 'Category', 'type': 'string'},
         'type': {'label': 'Type', 'type': 'string'},
-        'value': {'label': 'Current Value', 'type': 'decimal'},
+        'current_value': {'label': 'Current Value', 'type': 'decimal'},
         'purchase_value': {'label': 'Purchase Value', 'type': 'decimal'},
         'location': {'label': 'Location', 'type': 'string'},
         'status': {'label': 'Status', 'type': 'string'},

@@ -1,8 +1,4 @@
 from rest_framework.routers import DefaultRouter
-from .views import ProductViewSet, ProductHistoryViewSet, SizeRangeViewSet, ColorViewSet, ProductVariantViewSet
-
-from rest_framework.routers import DefaultRouter
-from rest_framework.urlpatterns import format_suffix_patterns
 from django.urls import path
 from .views import ProductViewSet, ProductHistoryViewSet, SizeRangeViewSet, ColorViewSet, ProductVariantViewSet
 

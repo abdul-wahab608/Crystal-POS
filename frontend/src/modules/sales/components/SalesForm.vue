@@ -1,450 +1,331 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-container">
-      <form @submit.prevent="onSubmit" class="modal-content">
-        <!-- Header -->
-        <div class="modal-header">
-          <h2 class="modal-title">
-            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            {{ sale?.id ? `Edit Sale — ${sale.bill_no}` : 'New Sale' }}
-          </h2>
-          <button type="button" @click="$emit('close')" class="close-button">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Body -->
-        <div class="modal-body">
-          <!-- Sale Information -->
-          <div class="section">
-            <h3 class="section-title">Sale Information</h3>
-
-            <!-- Bill No badge (read-only on edit) -->
-            <div v-if="sale?.bill_no" class="bill-badge">
-              Bill No: <strong>{{ sale.bill_no }}</strong>
-              <span class="text-xs text-gray-400 ml-2">(auto-assigned)</span>
-            </div>
-            <div v-else class="bill-badge text-gray-400">Bill No: auto-assigned on save</div>
-
-            <div class="form-grid mt-3">
-              <div class="form-group">
-                <label for="customer" class="form-label">Customer <span class="required">*</span></label>
-                <select v-model="form.customer" id="customer" class="form-input" required>
-                  <option value="">Select Customer</option>
-                  <option v-for="c in customers" :key="c.id" :value="c.id">
-                    {{ c.name }}{{ c.city ? ` — ${c.city}` : '' }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="sale_type" class="form-label">Sale Type <span class="required">*</span></label>
-                <select v-model="form.sale_type" id="sale_type" class="form-input" required>
-                  <option value="REGULAR">Regular</option>
-                  <option value="WALK_IN">Walk-in</option>
-                  <option value="PHONE_ORDER">Phone Order</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="payment_status" class="form-label">Payment Status <span class="required">*</span></label>
-                <select v-model="form.payment_status" id="payment_status" class="form-input" required>
-                  <option value="UNPAID">Unpaid</option>
-                  <option value="PARTIAL">Partial</option>
-                  <option value="PAID">Paid</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Products Section -->
-          <div class="section">
-            <h3 class="section-title">Products (quantities in dozens)</h3>
-
-            <!-- Add item row -->
-            <div class="add-product-section">
-              <div class="add-product-grid">
-                <div class="form-group">
-                  <label class="form-label">Product</label>
-                  <select v-model="newItem.product_id" class="form-input" @change="onProductChange">
-                    <option :value="0">Select Product</option>
-                    <option v-for="p in products" :key="p.id" :value="p.id">
-                      {{ p.name }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Size Range</label>
-                  <select v-model="newItem.size_range_id" class="form-input">
-                    <option :value="0">Select Size</option>
-                    <option v-for="sr in filteredSizeRanges" :key="sr.id" :value="sr.id">
-                      {{ sr.name }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Color</label>
-                  <select v-model="newItem.color_id" class="form-input">
-                    <option :value="0">Select Color</option>
-                    <option v-for="c in colors" :key="c.id" :value="c.id">
-                      {{ c.name }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Stock (dz)</label>
-                  <span class="form-input bg-gray-50 text-center font-mono">
-                    {{ availableDozen }}
-                  </span>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Qty (dozens)</label>
-                  <input
-                    v-model.number="newItem.quantity_dozens"
-                    type="number"
-                    step="1"
-                    class="form-input"
-                    placeholder="0"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Price / dozen (₨)</label>
-                  <input
-                    v-model.number="newItem.unit_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    class="form-input"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">&nbsp;</label>
-                  <button
-                    type="button"
-                    @click="addItem"
-                    class="btn-add"
-                    :disabled="!canAddItem"
-                  >+ Add</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Items list -->
-            <div v-if="saleItems.length > 0" class="products-list mt-3">
-              <div v-for="(item, idx) in saleItems" :key="idx" class="product-item">
-                <div class="product-info">
-                  <div class="product-name">{{ getProductName(item.product_id) }}</div>
-                  <div class="product-details">
-                    {{ getSizeRangeName(item.size_range_id) }} / {{ getColorName(item.color_id) }}
-                    &nbsp;·&nbsp;
-                    <strong>{{ item.quantity_dozens }} dz</strong>
-                    × ₨{{ item.unit_price.toFixed(2) }}
-                    = ₨{{ (item.quantity_dozens * item.unit_price).toFixed(2) }}
-                  </div>
-                </div>
-                <button type="button" @click="removeItem(idx)" class="btn-remove">✕</button>
-              </div>
-            </div>
-            <div v-else class="empty-products">No products added yet.</div>
-
-            <!-- Total -->
-            <div class="total-section">
-              <span class="total-label">Total:</span>
-              <span class="total-value">₨{{ totalAmount.toFixed(2) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="modal-footer">
-          <button type="button" @click="$emit('close')" class="btn-cancel">Cancel</button>
-          <button type="submit" class="btn-save" :disabled="saleItems.length === 0">
-            {{ sale?.id ? 'Update Sale' : 'Create Sale' }}
-          </button>
-        </div>
-      </form>
+  <form class="sale-form" @submit.prevent="submit">
+    <div class="field">
+      <label for="sale-customer">Customer</label>
+      <SearchableSelect
+        id="sale-customer"
+        v-model="customerId"
+        :options="customerOptions"
+        placeholder="Search customer"
+        required
+      />
     </div>
-  </div>
+
+    <div class="field narrow">
+      <label for="sale-type">Sale type</label>
+      <select id="sale-type" v-model="saleType" class="form-input">
+        <option value="REGULAR">Regular</option>
+        <option value="WALK_IN">Walk-in</option>
+        <option value="PHONE_ORDER">Phone order</option>
+      </select>
+    </div>
+
+    <div class="lines">
+      <div class="line-head">
+        <span>Product</span><span>Size range</span><span>Color</span><span>Quantity</span><span>Unit price</span><span>Line total</span><span />
+      </div>
+      <div v-for="(line, index) in lines" :key="line.key" class="line" :data-testid="`sale-line-${index}`">
+        <SearchableSelect
+          :id="`line-product-${line.key}`"
+          :model-value="line.productId"
+          :options="productOptions"
+          placeholder="Product"
+          @update:model-value="(v) => onProductChange(line, v)"
+        />
+        <SearchableSelect
+          :id="`line-size-${line.key}`"
+          :model-value="line.sizeRangeId"
+          :options="sizeOptionsFor(line)"
+          placeholder="Size range"
+          :disabled="!line.productId"
+          @update:model-value="(v) => onSizeChange(line, v)"
+        />
+        <SearchableSelect
+          :id="`line-color-${line.key}`"
+          :model-value="line.colorId"
+          :options="colorOptionsFor(line)"
+          placeholder="Color"
+          :disabled="!line.sizeRangeId"
+          @update:model-value="(v) => (line.colorId = (v as number | null))"
+        />
+        <div class="qty">
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            class="form-input"
+            :value="line.quantity ?? ''"
+            :aria-label="`Quantity line ${index + 1}`"
+            @input="line.quantity = toNumber(($event.target as HTMLInputElement).value)"
+          />
+          <span class="unit">{{ unitOf(line) }}</span>
+          <small v-if="line.colorId" class="available">
+            Available: {{ availableLabel(line) }}
+          </small>
+        </div>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          class="form-input"
+          placeholder="Type price"
+          :value="line.unitPrice ?? ''"
+          :aria-label="`Unit price line ${index + 1}`"
+          @input="line.unitPrice = toNumber(($event.target as HTMLInputElement).value)"
+        />
+        <span class="line-total">{{ formatMoney(lineTotal(line)) }}</span>
+        <button type="button" class="link-btn" :disabled="lines.length === 1" @click="removeLine(line.key)">Remove</button>
+        <small v-if="errors.get(line.key)" class="line-error">{{ errors.get(line.key) }}</small>
+      </div>
+      <button type="button" class="secondary-btn" @click="addLine">Add line</button>
+    </div>
+
+    <div class="totals">
+      <div><span>Sale total</span><strong>{{ formatMoney(total) }}</strong></div>
+      <div><span>Balance after receipt</span><strong>{{ formatMoney(balance) }}</strong></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="sale-received">Amount received now</label>
+        <input
+          id="sale-received"
+          type="number"
+          min="0"
+          step="0.01"
+          class="form-input"
+          :value="amountReceived ?? ''"
+          @input="amountReceived = toNumber(($event.target as HTMLInputElement).value)"
+        />
+      </div>
+      <div class="field">
+        <label for="sale-method">Payment method</label>
+        <select id="sale-method" v-model="paymentMethod" class="form-input" :disabled="!amountReceived">
+          <option value="">Choose</option>
+          <option value="CASH">Cash</option>
+          <option value="BANK">Bank transfer</option>
+          <option value="CHEQUE">Cheque</option>
+          <option value="PARCHI">Parchi (promissory)</option>
+        </select>
+      </div>
+    </div>
+
+    <p v-if="receiptError" class="form-error">{{ receiptError }}</p>
+    <p v-if="submitError" class="form-error">{{ submitError }}</p>
+
+    <div class="actions">
+      <button type="button" class="secondary-btn" @click="emit('cancel')">Cancel</button>
+      <button type="submit" class="primary-btn" :disabled="!canSubmit || submitting">
+        {{ submitting ? 'Saving...' : 'Save sale' }}
+      </button>
+    </div>
+  </form>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
-import { useProductsStore } from '@/modules/products/stores/products'
-import { useColorStore } from '@/modules/products/stores/color'
-import { useSizeRangeStore } from '@/modules/products/stores/sizeRange'
-import { useProductVariantStore } from '@/modules/products/stores/productVariant'
-import type { Sale, CreateSaleRequest } from '../types'
+import { ref, computed, onMounted } from 'vue'
+import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
+import { useSalesStore } from '../stores/sales'
+import { useCustomersStore } from '../../customers/stores/customers'
+import { useToastStore } from '../../../shared/stores/toast'
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import {
+  lineErrors, lineTotal, saleTotal, validateLine, roundMoney,
+  type SaleLineDraft, type LineStock,
+} from '../utils/saleLines'
+import { apiErrorMessage } from '../../../shared/utils/apiError'
+import type { CatalogProduct, CatalogVariant, CreateSaleRequest, PaymentMethod, Sale, SaleType } from '../types'
 
-interface Props {
-  sale?: Sale | null
-  customers: any[]
-}
+const emit = defineEmits<{
+  saved: [sale: Sale | undefined]
+  cancel: []
+}>()
 
-const props = defineProps<Props>()
-const emit = defineEmits(['save', 'close'])
+const salesStore = useSalesStore()
+const customersStore = useCustomersStore()
+const toast = useToastStore()
 
-const productsStore = useProductsStore()
-const colorStore = useColorStore()
-const sizeRangeStore = useSizeRangeStore()
-const variantStore = useProductVariantStore()
-
-const products = computed(() => productsStore.products || [])
-const colors = computed(() => colorStore.colors || [])
-
-// Size ranges relevant to the selected product
-const filteredSizeRanges = computed(() => {
-  if (!newItem.value.product_id) return sizeRangeStore.sizeRanges
-  const product = products.value.find(p => p.id === newItem.value.product_id)
-  if (!product) return sizeRangeStore.sizeRanges
-  // Product.size_range is the FK; show that plus any variant size ranges
-  const variantSrIds = new Set(
-    variantStore.variants
-      .filter(v => v.product === newItem.value.product_id)
-      .map(v => v.size_range)
-  )
-  if (product.size_range) variantSrIds.add(product.size_range)
-  if (variantSrIds.size === 0) return sizeRangeStore.sizeRanges
-  return sizeRangeStore.sizeRanges.filter(sr => variantSrIds.has(sr.id))
+let nextKey = 1
+const newLine = (): SaleLineDraft => ({
+  key: nextKey++, productId: null, sizeRangeId: null, colorId: null, quantity: null, unitPrice: null,
 })
 
-// Available stock for selected product+size+color combination
-const availableDozen = computed(() => {
-  const { product_id, size_range_id, color_id } = newItem.value
-  if (!product_id || !size_range_id || !color_id) return '—'
-  const variant = variantStore.variants.find(
-    v => v.product === product_id && v.size_range === size_range_id && v.color === color_id
-  )
-  return variant ? variant.quantity_dozens : 0
-})
+const customerId = ref<number | null>(null)
+const saleType = ref<SaleType>('REGULAR')
+const lines = ref<SaleLineDraft[]>([newLine()])
+const amountReceived = ref<number | null>(null)
+const paymentMethod = ref<PaymentMethod | ''>('')
+const submitting = ref(false)
+const submitError = ref('')
 
-const form = ref<CreateSaleRequest>({
-  customer: 0,
-  sale_type: 'REGULAR',
-  total_amount: 0,
-  date: new Date().toISOString().split('T')[0],
-  payment_status: 'UNPAID',
-  items: [],
-})
+const toNumber = (raw: string): number | null => (raw === '' ? null : Number(raw))
 
-const saleItems = ref<Array<{
-  product_id: number
-  size_range_id: number
-  color_id: number
-  quantity_dozens: number
-  unit_price: number
-}>>([])
-
-const newItem = ref({ product_id: 0, size_range_id: 0, color_id: 0, quantity_dozens: 0, unit_price: 0 })
-
-const totalAmount = computed(() =>
-  saleItems.value.reduce((sum, i) => sum + i.quantity_dozens * i.unit_price, 0)
+const customerOptions = computed(() =>
+  customersStore.customers
+    .filter(c => c.is_active)
+    .map(c => ({ value: c.id, label: c.city ? `${c.name} - ${c.city}` : c.name })),
 )
 
-const canAddItem = computed(() =>
-  newItem.value.product_id > 0 &&
-  newItem.value.size_range_id > 0 &&
-  newItem.value.color_id > 0 &&
-  newItem.value.quantity_dozens > 0 &&
-  newItem.value.unit_price > 0
+const productById = computed(() => new Map(salesStore.products.map(p => [p.id, p])))
+const sizeNameById = computed(() => new Map(salesStore.sizeRanges.map(s => [s.id, s.name])))
+
+const productOptions = computed(() =>
+  salesStore.products.map(p => ({ value: p.id, label: `${p.name} (${p.unit})` })),
 )
 
-function onProductChange() {
-  newItem.value.size_range_id = 0
-  newItem.value.color_id = 0
-  if (newItem.value.product_id) {
-    variantStore.fetchVariants(newItem.value.product_id)
-  }
+const sizeOptionsFor = (line: SaleLineDraft) => {
+  const product = line.productId ? productById.value.get(line.productId) : undefined
+  if (!product) return []
+  return product.size_ranges.map(id => ({ value: id, label: sizeNameById.value.get(id) ?? String(id) }))
 }
 
-function getProductName(id: number) {
-  return products.value.find(p => p.id === id)?.name ?? 'Unknown'
-}
-function getSizeRangeName(id: number) {
-  return sizeRangeStore.sizeRanges.find(sr => sr.id === id)?.name ?? '—'
-}
-function getColorName(id: number) {
-  return colors.value.find(c => c.id === id)?.name ?? '—'
+const variantsFor = (line: SaleLineDraft): CatalogVariant[] => {
+  const product = line.productId ? productById.value.get(line.productId) : undefined
+  if (!product || !line.sizeRangeId) return []
+  return product.variants.filter(v => v.size_range === line.sizeRangeId)
 }
 
-function addItem() {
-  if (!canAddItem.value) return
-  saleItems.value.push({ ...newItem.value })
-  newItem.value = { product_id: 0, size_range_id: 0, color_id: 0, quantity_dozens: 0, unit_price: 0 }
-}
-
-function removeItem(idx: number) {
-  saleItems.value.splice(idx, 1)
-}
-
-watch(() => props.sale, (val) => {
-  if (val) {
-    form.value = {
-      customer: val.customer,
-      sale_type: val.sale_type || 'REGULAR',
-      total_amount: val.total_amount,
-      date: val.date?.split('T')[0] ?? new Date().toISOString().split('T')[0],
-      payment_status: val.payment_status,
-      items: [],
-    }
-    saleItems.value = (val.sale_items || []).map(item => ({
-      product_id: item.product,
-      size_range_id: item.size_range,
-      color_id: item.color,
-      quantity_dozens: item.quantity_dozens,
-      unit_price: item.unit_price,
-    }))
-  } else {
-    form.value = {
-      customer: 0,
-      sale_type: 'REGULAR',
-      total_amount: 0,
-      date: new Date().toISOString().split('T')[0],
-      payment_status: 'UNPAID',
-      items: [],
-    }
-    saleItems.value = []
-  }
-}, { immediate: true })
-
-async function onSubmit() {
-  form.value.total_amount = totalAmount.value
-  form.value.items = saleItems.value.map(i => ({
-    product_id: i.product_id,
-    size_range_id: i.size_range_id,
-    color_id: i.color_id,
-    quantity_dozens: i.quantity_dozens,
-    unit_price: i.unit_price,
+const colorOptionsFor = (line: SaleLineDraft) =>
+  variantsFor(line).map(v => ({
+    value: v.color,
+    label: `${v.color_name} - ${roundMoney(Number(v.quantity))} ${productById.value.get(line.productId!)?.unit ?? ''} available`,
   }))
-  emit('save', { ...form.value })
+
+const variantFor = (line: SaleLineDraft): CatalogVariant | undefined =>
+  variantsFor(line).find(v => v.color === line.colorId)
+
+const unitOf = (line: SaleLineDraft): string => {
+  const product: CatalogProduct | undefined = line.productId ? productById.value.get(line.productId) : undefined
+  return product?.unit ?? ''
+}
+
+const availableLabel = (line: SaleLineDraft): string => {
+  const variant = variantFor(line)
+  return variant ? `${roundMoney(Number(variant.quantity))} ${unitOf(line)}` : 'none recorded'
+}
+
+const stockOf = (line: SaleLineDraft): LineStock => {
+  const product = line.productId ? productById.value.get(line.productId) : undefined
+  const variant = variantFor(line)
+  const sizeName = sizeNameById.value.get(line.sizeRangeId ?? 0) ?? ''
+  const label = `${product?.name ?? ''} (${sizeName}, ${variant?.color_name ?? ''})`
+  return { label, available: variant ? Number(variant.quantity) : null }
+}
+
+const onProductChange = (line: SaleLineDraft, value: string | number | null) => {
+  line.productId = value === null ? null : Number(value)
+  line.sizeRangeId = null
+  line.colorId = null
+}
+
+const onSizeChange = (line: SaleLineDraft, value: string | number | null) => {
+  line.sizeRangeId = value === null ? null : Number(value)
+  line.colorId = null
+}
+
+const addLine = () => lines.value.push(newLine())
+const removeLine = (key: number) => {
+  lines.value = lines.value.filter(l => l.key !== key)
+}
+
+const errors = computed(() => lineErrors(lines.value, stockOf))
+const total = computed(() => saleTotal(lines.value))
+const received = computed(() => amountReceived.value ?? 0)
+const balance = computed(() => roundMoney(total.value - received.value))
+
+const receiptError = computed(() => {
+  if (received.value < 0) return 'Amount received cannot be negative.'
+  if (received.value > total.value) return 'Amount received cannot exceed the sale total.'
+  if (received.value > 0 && !paymentMethod.value) return 'Choose how the amount was received.'
+  return ''
+})
+
+const canSubmit = computed(() =>
+  customerId.value !== null
+  && lines.value.length > 0
+  && lines.value.every(l => validateLine(l) === null)
+  && errors.value.size === 0
+  && receiptError.value === '',
+)
+
+const formatMoney = (value: number) => `₨${value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const submit = async () => {
+  if (!canSubmit.value || customerId.value === null) return
+  submitting.value = true
+  submitError.value = ''
+
+  const payload: CreateSaleRequest = {
+    customer: customerId.value,
+    sale_type: saleType.value,
+    items: lines.value.map(l => ({
+      product_id: l.productId as number,
+      size_range_id: l.sizeRangeId as number,
+      color_id: l.colorId as number,
+      quantity: String(l.quantity),
+      unit_price: String(l.unitPrice),
+    })),
+  }
+  if (received.value > 0) {
+    payload.amount_received = received.value.toFixed(2)
+    payload.payment_method = paymentMethod.value as PaymentMethod
+  }
+
+  try {
+    const sale = await acceptQueued(() => salesStore.createSale(payload))
+    if (sale === undefined) {
+      toast.info('Sale queued', 'It will be saved when the server is reachable.')
+    } else {
+      toast.success('Sale saved', sale.bill_no)
+    }
+    emit('saved', sale)
+  } catch (e) {
+    submitError.value = apiErrorMessage(e)
+  } finally {
+    submitting.value = false
+  }
 }
 
 onMounted(async () => {
-  await Promise.all([
-    productsStore.products.length === 0 ? productsStore.fetchProducts() : Promise.resolve(),
-    colorStore.colors.length === 0 ? colorStore.fetchColors() : Promise.resolve(),
-    sizeRangeStore.sizeRanges.length === 0 ? sizeRangeStore.fetchSizeRanges() : Promise.resolve(),
-  ])
+  const loads: Promise<unknown>[] = [salesStore.fetchCatalog()]
+  if (!customersStore.customers.length) loads.push(customersStore.fetchCustomers())
+  try {
+    await Promise.all(loads)
+  } catch (e) {
+    submitError.value = apiErrorMessage(e)
+  }
 })
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.6);
-  backdrop-filter: blur(4px); display: flex; align-items: center;
-  justify-content: center; z-index: 1000; padding: 1rem;
-}
-.modal-container { width: 100%; max-width: 960px; max-height: 92vh; display: flex; }
-.modal-content {
-  background: white; border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
-  display: flex; flex-direction: column; width: 100%; overflow: hidden;
-}
-.modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 1.25rem 2rem; border-bottom: 2px solid #f0f0f0;
-}
-.modal-title {
-  font-size: 1.375rem; font-weight: 700; color: #1a1a1a;
-  display: flex; align-items: center; gap: .75rem; margin: 0;
-}
-.close-button {
-  background: none; border: none; padding: .5rem; cursor: pointer;
-  color: #6b7280; border-radius: 8px; transition: all .2s;
-}
-.close-button:hover { background: #f3f4f6; color: #1f2937; }
-.modal-body { flex: 1; overflow-y: auto; padding: 1.5rem 2rem; background: #fafafa; }
-.section {
-  background: white; border-radius: 12px; padding: 1.25rem 1.5rem;
-  margin-bottom: 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,.04);
-}
-.section-title {
-  font-size: 1rem; font-weight: 600; color: #1f2937;
-  margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 2px solid #e5e7eb;
-}
-.bill-badge {
-  display: inline-block; background: #eff6ff; color: #1d4ed8;
-  border: 1px solid #bfdbfe; border-radius: 6px; padding: .25rem .75rem;
-  font-size: .875rem;
-}
-.form-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
-}
-.form-group { display: flex; flex-direction: column; }
-.form-label {
-  font-size: .8125rem; font-weight: 600; color: #374151; margin-bottom: .375rem;
-}
-.required { color: #ef4444; }
-.form-input {
-  padding: .625rem .875rem; border: 2px solid #e5e7eb; border-radius: 8px;
-  font-size: .9rem; transition: border-color .2s; background: white;
-}
-.form-input:focus { outline: none; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.1); }
-.add-product-section {
-  background: #f9fafb; border: 2px dashed #d1d5db; border-radius: 8px; padding: 1rem;
-}
-.add-product-grid {
+.sale-form { display: flex; flex-direction: column; gap: 1rem; }
+.field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.field.narrow { max-width: 14rem; }
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+.lines { display: flex; flex-direction: column; gap: 0.5rem; }
+.line-head, .line {
   display: grid;
-  grid-template-columns: 2fr 1.2fr 1.2fr .8fr .8fr 1fr auto;
-  gap: .75rem; align-items: end;
+  grid-template-columns: minmax(10rem, 1.4fr) minmax(7rem, 1fr) minmax(9rem, 1.2fr) minmax(8rem, 1fr) minmax(6rem, 0.8fr) 6rem 5rem;
+  gap: 0.5rem;
+  align-items: start;
 }
-.btn-add {
-  padding: .625rem 1rem; background: #10b981; color: white;
-  border: none; border-radius: 8px; font-weight: 600; cursor: pointer;
-  white-space: nowrap; transition: background .2s;
-}
-.btn-add:hover:not(:disabled) { background: #059669; }
-.btn-add:disabled { background: #d1d5db; cursor: not-allowed; }
-.products-list { display: flex; flex-direction: column; gap: .625rem; }
-.product-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: .75rem 1rem; background: #f9fafb; border: 1px solid #e5e7eb;
-  border-radius: 8px;
-}
-.product-info { flex: 1; }
-.product-name { font-weight: 600; color: #1f2937; font-size: .9rem; }
-.product-details { font-size: .8125rem; color: #6b7280; margin-top: .125rem; }
-.btn-remove {
-  background: #fee2e2; color: #dc2626; border: none;
-  padding: .375rem .625rem; border-radius: 6px; cursor: pointer; font-size: .875rem;
-}
-.btn-remove:hover { background: #fecaca; }
-.empty-products { text-align: center; padding: 1.5rem; color: #9ca3af; font-size: .875rem; }
-.total-section {
-  display: flex; justify-content: flex-end; align-items: center; gap: 1rem;
-  border-top: 2px solid #e5e7eb; padding-top: .875rem; margin-top: .875rem;
-}
-.total-label { font-size: 1rem; font-weight: 600; color: #1f2937; }
-.total-value { font-size: 1.375rem; font-weight: 700; color: #10b981; }
-.modal-footer {
-  display: flex; justify-content: flex-end; gap: 1rem;
-  padding: 1.25rem 2rem; border-top: 2px solid #f0f0f0; background: white;
-}
-.btn-cancel {
-  padding: .625rem 1.25rem; border: 2px solid #e5e7eb; background: white;
-  color: #6b7280; font-weight: 600; border-radius: 8px; cursor: pointer;
-}
-.btn-cancel:hover { background: #f3f4f6; }
-.btn-save {
-  padding: .625rem 2rem; border: none;
-  background: linear-gradient(135deg,#10b981,#059669);
-  color: white; font-weight: 600; border-radius: 8px; cursor: pointer;
-  box-shadow: 0 4px 12px rgba(16,185,129,.3); transition: all .2s;
-}
-.btn-save:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16,185,129,.4); }
-.btn-save:disabled { background: #d1d5db; cursor: not-allowed; box-shadow: none; }
-@media (max-width: 768px) {
-  .form-grid { grid-template-columns: 1fr; }
-  .add-product-grid { grid-template-columns: 1fr; }
+.line-head { font-size: 0.8rem; font-weight: 600; opacity: 0.7; }
+.line-error { grid-column: 1 / -1; color: #b42318; }
+.qty { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.qty input { width: 6rem; }
+.unit { font-size: 0.85rem; opacity: 0.8; }
+.available { flex-basis: 100%; opacity: 0.7; }
+.line-total { font-variant-numeric: tabular-nums; padding-top: 0.5rem; }
+.totals { display: flex; gap: 2rem; flex-wrap: wrap; }
+.totals div { display: flex; flex-direction: column; }
+.totals span { font-size: 0.8rem; opacity: 0.7; }
+.totals strong { font-size: 1.25rem; }
+.form-error { color: #b42318; margin: 0; }
+.actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.link-btn { background: none; border: none; color: #b42318; cursor: pointer; padding-top: 0.5rem; }
+.link-btn:disabled { opacity: 0.4; cursor: default; }
+@media (max-width: 760px) {
+  .line-head { display: none; }
+  .line { grid-template-columns: 1fr 1fr; }
 }
 </style>

@@ -12,11 +12,14 @@ const PaymentsView = () => import('../modules/payments/views/PaymentsView.vue')
 const ReportsView = () => import('../modules/reports/views/ReportsView.vue')
 const UsersView = () => import('../modules/users/views/UsersView.vue')
 const RawMaterialsView = () => import('../modules/raw_materials/views/RawMaterialsView.vue')
+const ProductionView = () => import('../modules/production/views/ProductionView.vue')
 const ProfitAnalyticsView = () => import('../modules/profit/views/ProfitAnalyticsView.vue')
 const CostManagementView = () => import('../modules/profit/views/CostManagementView.vue')
 const DashboardView = () => import('../views/HomeView.vue')
 const LoginView = () => import('../views/LoginView.vue')
 const ImportHistoryView = () => import('../views/ImportHistoryView.vue')
+const CatalogView = () => import('../modules/catalog/views/CatalogView.vue')
+const BankAccountsView = () => import('../modules/bank_accounts/views/BankAccountsView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -41,8 +44,11 @@ const router = createRouter({
         { path: 'reports', name: 'reports', component: ReportsView },
         { path: 'users', name: 'users', component: UsersView },
         { path: 'raw-materials', name: 'raw-materials', component: RawMaterialsView },
+        { path: 'production', name: 'production', component: ProductionView },
         { path: 'profit', name: 'profit', component: ProfitAnalyticsView },
         { path: 'profit/costs', name: 'profit-costs', component: CostManagementView },
+        { path: 'catalog', name: 'catalog', component: CatalogView },
+        { path: 'bank-accounts', name: 'bank-accounts', component: BankAccountsView },
         { path: 'import-history', name: 'import-history', component: ImportHistoryView },
       ],
     },

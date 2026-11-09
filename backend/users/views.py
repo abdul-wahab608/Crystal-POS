@@ -1,9 +1,11 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import update_last_login
 from .models import User
 from .serializers import UserSerializer
 from users.permissions import IsAdminUser
@@ -12,6 +14,11 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def perform_destroy(self, instance):
+        if instance == self.request.user:
+            raise ValidationError({'detail': 'You cannot delete your own account.'})
+        instance.delete()
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -36,6 +43,7 @@ def login_view(request):
         user = None
 
     if user:
+        update_last_login(None, user)
         refresh = RefreshToken.for_user(user)
         return Response({
             'token': str(refresh.access_token),

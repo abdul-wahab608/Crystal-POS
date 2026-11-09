@@ -1,8 +1,10 @@
 from decimal import Decimal
+from django.db import transaction
 from rest_framework import serializers
 from .models import Sale, SaleItem
-from products.models import Product, ProductVariant, SizeRange, Color
-from django.db import transaction
+from .services import adjust_stock, aggregate_lines, reserve_stock
+from payments.models import Payment
+from products.models import Product, SizeRange, Color
 
 
 class SaleItemSerializer(serializers.ModelSerializer):
@@ -14,83 +16,116 @@ class SaleItemSerializer(serializers.ModelSerializer):
         model = SaleItem
         fields = [
             'id', 'product', 'product_name', 'size_range', 'size_range_name',
-            'color', 'color_name', 'quantity_dozens', 'unit_price', 'subtotal'
+            'color', 'color_name', 'quantity', 'unit_price', 'subtotal'
         ]
+
+
+class SaleItemInputSerializer(serializers.Serializer):
+    product_id = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), source='product')
+    size_range_id = serializers.PrimaryKeyRelatedField(queryset=SizeRange.objects.all(), source='size_range')
+    color_id = serializers.PrimaryKeyRelatedField(queryset=Color.objects.all(), source='color')
+    quantity = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    unit_price = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0'))
 
 
 class SaleSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)
     customer_city = serializers.CharField(source='customer.city', read_only=True)
     items_count = serializers.SerializerMethodField()
-    items = serializers.ListField(write_only=True, required=False)
+    amount_paid = serializers.SerializerMethodField()
+    balance = serializers.SerializerMethodField()
+    items = SaleItemInputSerializer(many=True, write_only=True, required=False)
     sale_items = SaleItemSerializer(many=True, read_only=True, source='items')
+    amount_received = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal('0'), write_only=True, required=False
+    )
+    payment_method = serializers.ChoiceField(
+        choices=Payment.PAYMENT_METHOD_CHOICES, write_only=True, required=False
+    )
 
     class Meta:
         model = Sale
         fields = [
             'id', 'bill_no', 'sale_type', 'customer', 'customer_name', 'customer_city',
-            'date', 'total_amount', 'payment_status', 'created_by',
-            'items_count', 'items', 'sale_items'
+            'date', 'total_amount', 'payment_status', 'amount_paid', 'balance', 'created_by',
+            'items_count', 'items', 'sale_items', 'amount_received', 'payment_method'
         ]
-        read_only_fields = ['bill_no', 'created_by', 'date']
+        read_only_fields = ['bill_no', 'created_by', 'date', 'total_amount', 'payment_status']
 
     def get_items_count(self, obj):
         return obj.items.count()
 
+    def get_amount_paid(self, obj):
+        return str(obj.amount_paid().quantize(Decimal('0.01')))
+
+    def get_balance(self, obj):
+        return str((obj.total_amount - obj.amount_paid()).quantize(Decimal('0.01')))
+
+    def validate(self, attrs):
+        if self.instance is not None:
+            for field in ('items', 'amount_received', 'payment_method'):
+                if field in attrs:
+                    raise serializers.ValidationError({field: 'Cannot be changed after the sale is created.'})
+            return attrs
+
+        items = attrs.get('items')
+        if not items:
+            raise serializers.ValidationError({'items': 'Add at least one product line.'})
+
+        total = sum((i['unit_price'] * i['quantity'] for i in items), Decimal('0'))
+        received = attrs.get('amount_received') or Decimal('0')
+        if received > total:
+            raise serializers.ValidationError({'amount_received': 'Cannot exceed the sale total.'})
+        if received > 0 and not attrs.get('payment_method'):
+            raise serializers.ValidationError({'payment_method': 'Choose how the amount was received.'})
+        return attrs
+
     @transaction.atomic
     def create(self, validated_data):
-        items_data = validated_data.pop('items', [])
+        items_data = validated_data.pop('items')
+        received = validated_data.pop('amount_received', None) or Decimal('0')
+        payment_method = validated_data.pop('payment_method', None)
         user = self.context['request'].user
 
-        # Resolve and validate all items before any DB writes
-        resolved = []
-        for item_data in items_data:
-            product_id = item_data['product_id']
-            size_range_id = item_data.get('size_range_id')
-            color_id = item_data.get('color_id')
-            quantity_dozens = int(item_data.get('quantity_dozens', item_data.get('quantity', 0)))
-            unit_price = Decimal(str(item_data.get('unit_price', 0)))
+        lines = [(i['product'], i['size_range'], i['color'], i['quantity']) for i in items_data]
+        reserve_stock(lines)
 
-            if not color_id:
-                raise serializers.ValidationError(
-                    {'items': f'color_id is required for product {product_id}.'}
-                )
+        subtotals = {}
+        for i in items_data:
+            key = (i['product'].pk, i['size_range'].pk, i['color'].pk)
+            subtotals[key] = subtotals.get(key, Decimal('0')) + i['unit_price'] * i['quantity']
+        quantities = aggregate_lines(lines)
+        total = sum(subtotals.values(), Decimal('0'))
+        sale = Sale.objects.create(created_by=user, total_amount=total, **validated_data)
 
-            product = Product.objects.get(id=product_id)
-            size_range = SizeRange.objects.get(id=size_range_id) if size_range_id else SizeRange.objects.filter(products=product).first()
-            color = Color.objects.get(id=color_id)
-
-            variant = ProductVariant.objects.filter(
-                product=product, size_range=size_range, color=color
-            ).first()
-            if variant and quantity_dozens > variant.quantity_dozens:
-                raise serializers.ValidationError({
-                    'items': (
-                        f'Insufficient stock for {product.name} ({color.name}): '
-                        f'requested {quantity_dozens} dozens, available {variant.quantity_dozens}.'
-                    )
-                })
-
-            resolved.append((product, size_range, color, quantity_dozens, unit_price, variant))
-
-        sale = Sale.objects.create(created_by=user, **validated_data)
-
-        for product, size_range, color, quantity_dozens, unit_price, variant in resolved:
+        for i in items_data:
+            key = (i['product'].pk, i['size_range'].pk, i['color'].pk)
+            if key not in quantities:
+                continue
+            quantity = quantities.pop(key)
+            subtotal = subtotals[key]
             SaleItem.objects.create(
                 sale=sale,
-                product=product,
-                size_range=size_range,
-                color=color,
-                quantity_dozens=quantity_dozens,
-                unit_price=unit_price,
-                subtotal=unit_price * quantity_dozens,
+                product=i['product'],
+                size_range=i['size_range'],
+                color=i['color'],
+                quantity=quantity,
+                unit_price=(subtotal / quantity).quantize(Decimal('0.01')),
+                subtotal=subtotal,
+            )
+            adjust_stock(i['product'], i['size_range'], i['color'], quantity)
+
+        if received > 0:
+            Payment.objects.create(
+                payment_type=Payment.INCOMING,
+                payment_method=payment_method,
+                amount=received,
+                status=Payment.COMPLETED,
+                customer=sale.customer,
+                sale=sale,
+                reference=sale.bill_no,
+                notes=f'Received with sale {sale.bill_no}',
             )
 
-            if variant:
-                variant.quantity_dozens -= quantity_dozens
-                variant.save()
-
-            product.quantity = max(0, product.quantity - (quantity_dozens * 12))
-            product.save()
-
+        sale.refresh_from_db()
         return sale

@@ -1,66 +1,51 @@
 import { defineStore } from 'pinia'
-import type { Sale, CreateSaleRequest, UpdateSaleRequest } from '../types'
+import type {
+  Sale, CreateSaleRequest, SaleFilters, CatalogProduct, CatalogSizeRange,
+} from '../types'
 import api from '../../../shared/api/axios'
-import { isQueuedWrite } from '../../../shared/utils/queuedWrite'
 
 export const useSalesStore = defineStore('sales', {
   state: () => ({
     sales: [] as Sale[],
+    products: [] as CatalogProduct[],
+    sizeRanges: [] as CatalogSizeRange[],
     loading: false,
     error: null as string | null,
   }),
   actions: {
-    async fetchSales() {
+    async fetchSales(filters: SaleFilters = {}) {
       this.loading = true
-      this.error = null
-      
       try {
-        const res = await api.get<Sale[]>('/sales/')
-        this.sales = res.data || []
+        const res = await api.get<Sale[]>('/sales/', { params: filters })
+        this.sales = res.data
+        this.error = null
       } catch (e: any) {
-        if (e.response?.status === 403) {
-          this.error = 'Access denied. Please check your permissions or login again.'
-        } else {
-          this.error = e.response?.data?.message || e.message
-        }
-        this.sales = []
+        this.error = e.response?.data?.detail || e.message
+        throw e
       } finally {
         this.loading = false
       }
     },
-    async createSale(payload: CreateSaleRequest) {
-      try {
-        const res = await api.post<Sale>('/sales/', payload)
-        this.sales.push(res.data)
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.response?.data || e.message
-        throw e
-      }
+    async fetchCustomerSales(customerId: number): Promise<Sale[]> {
+      const res = await api.get<Sale[]>('/sales/', { params: { customer: customerId } })
+      return res.data
     },
-    async updateSale(id: number, payload: UpdateSaleRequest) {
-      try {
-        const res = await api.patch<Sale>(`/sales/${id}/`, payload)
-        const idx = this.sales.findIndex(s => s.id === id)
-        if (idx !== -1) this.sales[idx] = res.data
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
+    async fetchCatalog() {
+      const [products, sizeRanges] = await Promise.all([
+        api.get<CatalogProduct[]>('/products/'),
+        api.get<CatalogSizeRange[]>('/products/size-ranges/'),
+      ])
+      this.products = products.data
+      this.sizeRanges = sizeRanges.data
+    },
+    async createSale(payload: CreateSaleRequest) {
+      const res = await api.post<Sale>('/sales/', payload)
+      this.sales.unshift(res.data)
+      return res.data
     },
     async deleteSale(id: number) {
-      try {
-        await api.delete(`/sales/${id}/`)
-        this.sales = this.sales.filter(s => s.id !== id)
-        this.error = null
-      } catch (e: any) {
-        if (isQueuedWrite(e)) throw e
-        this.error = e.response?.data?.message || e.message
-        throw e
-      }
-    }
-  }
-}) 
+      await api.delete(`/sales/${id}/`)
+      this.sales = this.sales.filter(s => s.id !== id)
+    },
+  },
+})

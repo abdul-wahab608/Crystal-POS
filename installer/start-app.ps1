@@ -100,7 +100,6 @@ Write-Host "=========================================="
 Write-Host "Application:  http://localhost:8010/"
 Write-Host "Backend API:  http://localhost:8010/api/"
 Write-Host ""
-Write-Host "Default login: admin / admin123"
 Write-Host "=========================================="
 Write-Host ""
 # Exit silently - backend runs in background

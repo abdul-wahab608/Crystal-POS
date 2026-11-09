@@ -11,33 +11,82 @@
       </div>
     </div>
 
-    <div class="filter-group product-select">
+    <div v-if="authStore.isManager" class="filter-group product-select">
       <label>Product</label>
-      <select v-model.number="selectedProductId" class="filter-select">
-        <option :value="null">Select a product...</option>
-        <option v-for="p in productsStore.products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.unit }})</option>
-      </select>
+      <SearchableSelect
+        :modelValue="selectedProductId"
+        @update:modelValue="(value) => (selectedProductId = value === null ? null : Number(value))"
+        :options="productOptions"
+        id="cost-product"
+        placeholder="Search for a product..."
+      />
     </div>
 
-    <div v-if="!selectedProductId" class="empty-state">
+    <div v-if="!authStore.isManager" class="empty-state">Product costs are available to managers only.</div>
+
+    <div v-else-if="!selectedProductId" class="empty-state">
       Pick a product above to view or edit its cost breakdown.
     </div>
 
     <div v-else class="cost-content">
       <div class="current-cost-card">
-        <h3>Current Effective Cost (as of {{ today }})</h3>
-        <div v-if="profitStore.currentCost?.using_fallback_cop" class="fallback-note">
-          No cost history recorded yet for this product — showing its Cost of Production (₨{{ formatMoney(totalPerDozen) }}/dozen) as a fallback. Add a cost below to start tracking real components.
+        <h3>Cost Used for Profit (as of {{ today }})</h3>
+        <p class="source-line">Source: <strong>{{ costSourceLabel(profitStore.currentCost?.cost_source) }}</strong></p>
+        <div v-if="profitStore.currentCost?.cost_source === 'MISSING'" class="missing-note">
+          {{ COST_MISSING_MESSAGE }}. Profit for this product is not shown until a cost is known.
         </div>
-        <div v-else class="cost-breakdown">
-          <div v-for="c in profitStore.currentCost?.components || []" :key="c.component_type" class="cost-line">
-            <span>{{ c.component_type_name }}</span>
-            <span>₨{{ formatMoney(c.amount_per_dozen) }}/dz <small>(since {{ c.valid_from }})</small></span>
+        <template v-else>
+          <div v-if="profitStore.currentCost?.cost_source === 'COP'" class="fallback-note">
+            No manual cost or production run applies, so the Cost of Production on the product (₨{{ formatMoney(totalPerDozen) }}/dozen) is used. Add a manual cost or record a production run to replace it.
           </div>
-        </div>
-        <div class="cost-total">
-          Total: ₨{{ formatMoney(totalPerDozen) }}/dozen &nbsp;·&nbsp; ₨{{ formatMoney(totalPerDozen / 12) }}/piece
-        </div>
+          <div v-if="profitStore.currentCost?.components?.length" class="cost-breakdown">
+            <div v-for="c in profitStore.currentCost?.components || []" :key="c.component_type" class="cost-line">
+              <span>{{ c.component_type_name }}</span>
+              <span>₨{{ formatMoney(c.amount_per_dozen) }}/dz <small>(since {{ c.valid_from }})</small></span>
+            </div>
+          </div>
+          <div class="cost-total">
+            Total: ₨{{ formatMoney(totalPerDozen) }}/dozen &nbsp;·&nbsp; ₨{{ formatMoney(totalPerDozen / 12) }}/piece
+          </div>
+        </template>
+        <p class="override-note">
+          A manual cost entry always overrides production-derived cost. Production cost is used only while no manual entry is in effect.
+        </p>
+      </div>
+
+      <div class="production-section">
+        <h3>Production-Derived Cost</h3>
+        <p class="form-hint">
+          Per unit = cost of the run's raw-material inputs (each at its latest purchase price on or before the run date) ÷ units produced in that run. The most recent run dated on or before the date is used, unless a manual cost applies.
+        </p>
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Date</th>
+              <th>Produced</th>
+              <th>Input cost</th>
+              <th>Cost/unit</th>
+              <th>Used for profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="run in profitStore.currentCost?.production_runs || []" :key="run.run_id">
+              <td>#{{ run.run_id }}</td>
+              <td>{{ run.date }}</td>
+              <td>{{ formatMoney(run.output_quantity) }}</td>
+              <td>{{ run.input_cost === null ? '—' : `₨${formatMoney(run.input_cost)}` }}</td>
+              <td>{{ run.unit_cost === null ? 'Not usable' : `₨${formatMoney(run.unit_cost)}` }}</td>
+              <td>
+                <span v-if="run.run_id === profitStore.currentCost?.production_run_id" class="used-badge">Used</span>
+                <span v-else-if="run.unit_cost === null" class="form-hint">No inputs, or an input has no purchase price</span>
+              </td>
+            </tr>
+            <tr v-if="!profitStore.currentCost?.production_runs?.length">
+              <td colspan="6" class="empty-row">No production runs have produced this product.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <form v-if="authStore.isManager" class="add-cost-form" @submit.prevent="submitCost">
@@ -59,6 +108,7 @@
           </div>
           <button type="submit" class="btn-primary" :disabled="submitting || !form.component_type">Save</button>
         </div>
+        <p v-if="costError" class="form-error">{{ costError }}</p>
       </form>
 
       <div class="history-section">
@@ -73,7 +123,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="c in profitStore.productCosts" :key="c.id">
+            <tr v-for="c in pageItems" :key="c.id">
               <td>{{ c.component_type_name }}</td>
               <td>₨{{ formatMoney(c.amount_per_dozen) }}</td>
               <td>{{ c.valid_from }}</td>
@@ -86,6 +136,15 @@
             </tr>
           </tbody>
         </table>
+        <PaginationBar
+          v-if="profitStore.productCosts.length"
+          :page="page"
+          :totalPages="totalPages"
+          :total="total"
+          :pageSize="pageSize"
+          @update:page="goTo"
+          @update:pageSize="setPageSize"
+        />
       </div>
     </div>
 
@@ -94,6 +153,7 @@
         <h3>Add Custom Cost Field</h3>
         <p class="form-hint">e.g. Packaging, Transport, Overheads — it becomes available for every product.</p>
         <input v-model="newComponentName" type="text" placeholder="Field name" class="filter-input" @keyup.enter="addComponent" />
+        <p v-if="componentError" class="form-error">{{ componentError }}</p>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showAddComponent = false">Cancel</button>
           <button class="btn-primary" :disabled="!newComponentName.trim()" @click="addComponent">Add</button>
@@ -109,6 +169,10 @@ import { useProfitStore } from '../stores/profit'
 import { useProductsStore } from '../../products/stores/products'
 import { useAuthStore } from '../../../shared/stores/auth'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
+import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
+import { COST_MISSING_MESSAGE, costSourceLabel } from '../utils/costSource'
 
 const profitStore = useProfitStore()
 const productsStore = useProductsStore()
@@ -118,7 +182,9 @@ const selectedProductId = ref<number | null>(null)
 const showAddComponent = ref(false)
 const newComponentName = ref('')
 const submitting = ref(false)
-const today = new Date().toISOString().slice(0, 10)
+const costError = ref('')
+const componentError = ref('')
+const today = new Date().toLocaleDateString('en-CA')
 
 const form = ref<{ component_type: number | null; amount_per_dozen: number; valid_from: string }>({
   component_type: null,
@@ -126,7 +192,25 @@ const form = ref<{ component_type: number | null; amount_per_dozen: number; vali
   valid_from: today,
 })
 
-const totalPerDozen = computed(() => Number(profitStore.currentCost?.total_per_dozen || 0))
+const productOptions = computed(() =>
+  productsStore.products.map((p) => ({ value: p.id, label: `${p.name} (${p.unit})` })),
+)
+
+function errorMessage(error: any): string {
+  const data = error?.response?.data
+  if (!data) return error?.message || 'Request failed'
+  if (typeof data === 'string') return data
+  if (data.detail) return String(data.detail)
+  if (data.error) return String(data.error)
+  return Object.entries(data)
+    .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(' ') : msgs}`)
+    .join('\n')
+}
+
+const totalPerDozen = computed(() => Number(profitStore.currentCost?.unit_cost || 0))
+
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(computed(() => profitStore.productCosts))
+watch(selectedProductId, reset)
 
 function formatMoney(value: number | string) {
   return Number(value).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -145,6 +229,7 @@ watch(selectedProductId, loadForProduct)
 async function submitCost() {
   if (!selectedProductId.value || !form.value.component_type) return
   submitting.value = true
+  costError.value = ''
   try {
     await acceptQueued(() => profitStore.addProductCost({
       product: selectedProductId.value!,
@@ -154,6 +239,8 @@ async function submitCost() {
     }))
     await loadForProduct()
     form.value.amount_per_dozen = 0
+  } catch (error) {
+    costError.value = errorMessage(error)
   } finally {
     submitting.value = false
   }
@@ -161,16 +248,25 @@ async function submitCost() {
 
 async function removeCost(id: number) {
   if (!confirm('Remove this cost entry?')) return
-  await acceptQueued(() => profitStore.deleteProductCost(id))
-  if (selectedProductId.value) await profitStore.fetchCurrentCost(selectedProductId.value)
+  try {
+    await acceptQueued(() => profitStore.deleteProductCost(id))
+    if (selectedProductId.value) await profitStore.fetchCurrentCost(selectedProductId.value)
+  } catch (error) {
+    costError.value = errorMessage(error)
+  }
 }
 
 async function addComponent() {
   const name = newComponentName.value.trim()
   if (!name) return
-  await acceptQueued(() => profitStore.createCostComponent(name))
-  newComponentName.value = ''
-  showAddComponent.value = false
+  componentError.value = ''
+  try {
+    await acceptQueued(() => profitStore.createCostComponent(name))
+    newComponentName.value = ''
+    showAddComponent.value = false
+  } catch (error) {
+    componentError.value = errorMessage(error)
+  }
 }
 
 onMounted(async () => {
@@ -286,7 +382,8 @@ onMounted(async () => {
 
 .current-cost-card,
 .add-cost-form,
-.history-section {
+.history-section,
+.production-section {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
@@ -295,9 +392,16 @@ onMounted(async () => {
 
 .current-cost-card h3,
 .add-cost-form h3,
-.history-section h3 {
+.history-section h3,
+.production-section h3 {
   margin: 0 0 1rem 0;
   color: #0f172a;
+}
+
+.source-line {
+  margin: 0 0 0.75rem 0;
+  color: #334155;
+  font-size: 0.875rem;
 }
 
 .fallback-note {
@@ -307,6 +411,31 @@ onMounted(async () => {
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
+}
+
+.missing-note {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.override-note {
+  margin: 1rem 0 0 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
+.used-badge {
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .cost-breakdown {
@@ -400,5 +529,10 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+.form-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
 }
 </style>

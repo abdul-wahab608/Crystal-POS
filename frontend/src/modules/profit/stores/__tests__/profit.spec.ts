@@ -87,13 +87,16 @@ describe('ProfitStore', () => {
     it('fetches the current effective cost, omitting as_of when not provided', async () => {
       const store = useProfitStore()
       vi.mocked(api.get).mockResolvedValueOnce({
-        data: { product: 7, as_of: '2026-08-09', components: [], total_per_dozen: '15.00', using_fallback_cop: true },
+        data: {
+          product: 7, as_of: '2026-08-09', components: [], unit_cost: '15.00', cost_source: 'COP',
+          production_run_id: null, production_runs: [],
+        },
       })
 
       await store.fetchCurrentCost(7)
 
       expect(api.get).toHaveBeenCalledWith('/profit/product-costs/current/', { params: { product: '7' } })
-      expect(store.currentCost?.using_fallback_cop).toBe(true)
+      expect(store.currentCost?.cost_source).toBe('COP')
     })
   })
 

@@ -76,7 +76,7 @@
         </thead>
         <tbody>
           <tr 
-            v-for="row in filteredRows" 
+            v-for="row in pageItems"
             :key="row._rowIndex"
             :class="getRowClass(row)"
           >
@@ -106,7 +106,16 @@
           </tr>
         </tbody>
       </table>
-      
+      <PaginationBar
+        v-if="filteredRows.length"
+        :page="page"
+        :totalPages="totalPages"
+        :total="total"
+        :pageSize="pageSize"
+        @update:page="goTo"
+        @update:pageSize="setPageSize"
+      />
+
       <div v-if="filteredRows.length === 0" class="empty-state">
         <p>No rows match the current filter.</p>
       </div>
@@ -153,8 +162,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useImportStore, type ImportPreviewRow } from '../../stores/import'
+import PaginationBar from '../PaginationBar.vue'
+import { usePagination } from '../../composables/usePagination'
 
 const emit = defineEmits<{
   next: []
@@ -196,6 +207,9 @@ const filteredRows = computed(() => {
       return store.previewRows
   }
 })
+
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(filteredRows)
+watch(activeFilter, reset)
 
 const allFilteredSelected = computed(() => {
   const validRows = filteredRows.value.filter(r => r._errors.length === 0 && !r._isDuplicate)

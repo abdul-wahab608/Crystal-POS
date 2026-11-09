@@ -1,474 +1,233 @@
 <template>
-  <div class="sales-page">
-    <!-- Header -->
-    <div class="page-header">
-      <h1 class="page-title">Sales Management</h1>
-      <button @click="showAddForm = true" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        New Sale
-      </button>
-    </div>
+  <div class="sales-view">
+    <header class="page-head">
+      <h1>Sales</h1>
+      <button type="button" class="primary-btn" @click="showForm = true">New sale</button>
+    </header>
 
-    <!-- Loading State -->
-    <div v-if="store.loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading sales...</p>
-    </div>
-
-    <!-- Error State -->
-    <div v-else-if="store.error" class="error-state">
-      <p class="error-message">{{ store.error }}</p>
-      <button @click="store.fetchSales()" class="btn-secondary">Try Again</button>
-    </div>
-
-    <!-- Content -->
-    <div v-else class="content">
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-number">{{ sales.length }}</div>
-          <div class="stat-label">Total Sales</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">₨{{ totalSpent.toFixed(2) }}</div>
-          <div class="stat-label">Total Revenue</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">{{ thisMonthSales }}</div>
-          <div class="stat-label">This Month's Sales</div>
-        </div>
-      </div>
-
-      <!-- Search -->
-      <div class="filters-section">
-        <input 
-          v-model="searchTerm" 
-          type="text" 
-          placeholder="Search sales..." 
-          class="search-input"
+    <section class="filters">
+      <input
+        v-model="filters.search"
+        type="search"
+        class="form-input"
+        placeholder="Search bill number or customer"
+        aria-label="Search sales"
+      />
+      <div class="filter-customer">
+        <SearchableSelect
+          v-model="filters.customer"
+          :options="customerOptions"
+          placeholder="All customers"
         />
       </div>
+      <select v-model="filters.payment_status" class="form-input" aria-label="Payment status">
+        <option value="">All statuses</option>
+        <option value="PAID">Paid</option>
+        <option value="PARTIAL">Part paid</option>
+        <option value="UNPAID">Unpaid</option>
+      </select>
+      <input v-model="filters.date_from" type="date" class="form-input" aria-label="From date" />
+      <input v-model="filters.date_to" type="date" class="form-input" aria-label="To date" />
+    </section>
 
-      <!-- Sales Table -->
-      <div class="table-container">
-        <table class="sales-table">
-          <thead>
-            <tr>
-              <th>Bill No</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Total Amount</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="sale in filteredSales" :key="sale.id" class="table-row">
-              <td>{{ sale.bill_no }}</td>
-              <td>{{ sale.customer_name || 'Unknown Customer' }}</td>
-              <td>{{ sale.sale_items.length }} items</td>
-              <td>₨{{ Number(sale.total_amount || 0).toFixed(2) }}</td>
-              <td>{{ sale.date ? formatDate(sale.date) : 'N/A' }}</td>
-              <td>
-                <label class="status-checkbox-label">
-                  <input 
-                    type="checkbox" 
-                    :checked="sale.payment_status === 'PAID'"
-                    @change="togglePaymentStatus(sale)"
-                    class="payment-checkbox"
-                  />
-                  <span :class="getStatusClass(sale.payment_status)">
-                    {{ sale.payment_status || 'UNPAID' }}
-                  </span>
-                </label>
-              </td>
-              <td>
-                <div class="actions">
-                  <button @click="viewSale(sale)" class="action-btn view">View</button>
-                  <button @click="deleteSale(sale.id)" class="action-btn delete">Delete</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <p v-if="error" class="form-error">{{ error }}</p>
+    <p class="summary">
+      {{ salesStore.sales.length }} bills · Total {{ formatMoney(totals.total) }} · Received {{ formatMoney(totals.received) }} · Balance {{ formatMoney(totals.balance) }}
+    </p>
 
-        <!-- Empty State -->
-        <div v-if="filteredSales.length === 0" class="empty-state">
-          <p>No sales found.</p>
-          <button @click="showAddForm = true" class="btn-primary">Create Your First Sale</button>
-        </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Bill</th>
+            <th>Customer</th>
+            <th>Date</th>
+            <th class="num">Lines</th>
+            <th class="num">Total</th>
+            <th class="num">Received</th>
+            <th class="num">Balance</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="!salesStore.sales.length && !salesStore.loading">
+            <td colspan="9" class="empty">No sales match these filters.</td>
+          </tr>
+          <tr v-for="sale in pageItems" :key="sale.id">
+            <td>{{ sale.bill_no }}</td>
+            <td>{{ sale.customer_name }}<span v-if="sale.customer_city" class="muted"> · {{ sale.customer_city }}</span></td>
+            <td>{{ formatDate(sale.date) }}</td>
+            <td class="num">{{ sale.items_count }}</td>
+            <td class="num">{{ formatMoney(Number(sale.total_amount)) }}</td>
+            <td class="num">{{ formatMoney(Number(sale.amount_paid)) }}</td>
+            <td class="num">{{ formatMoney(Number(sale.balance)) }}</td>
+            <td><span class="badge" :class="sale.payment_status.toLowerCase()">{{ paymentStatusLabel(sale.payment_status) }}</span></td>
+            <td class="actions">
+              <button type="button" class="link-btn" @click="billSale = sale">View bill</button>
+              <button v-if="auth.isManager" type="button" class="link-btn danger" @click="removeSale(sale)">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <PaginationBar
+        :page="page"
+        :totalPages="totalPages"
+        :total="total"
+        :pageSize="pageSize"
+        @update:page="goTo"
+        @update:pageSize="setPageSize"
+      />
+    </div>
+
+    <div v-if="showForm" class="modal-backdrop" @click.self="showForm = false">
+      <div class="modal" role="dialog" aria-label="New sale">
+        <h2>New sale</h2>
+        <SalesForm @saved="onSaved" @cancel="showForm = false" />
       </div>
     </div>
 
-    <!-- Add Sale Modal -->
-    <SalesForm
-      v-if="showAddForm"
-      :customers="customers"
-      @save="handleSaveSale"
-      @close="closeForm"
-    />
+    <div v-if="billSale" class="modal-backdrop" @click.self="billSale = null">
+      <div class="modal modal-wide" role="dialog" aria-label="Bill">
+        <SaleBill :sale="billSale" :unit-by-product-id="unitByProductId" @close="billSale = null" />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
+import SalesForm from '../components/SalesForm.vue'
+import SaleBill from '../components/SaleBill.vue'
+import PaginationBar from '../../../shared/components/PaginationBar.vue'
+import { usePagination } from '../../../shared/composables/usePagination'
 import { useSalesStore } from '../stores/sales'
 import { useCustomersStore } from '../../customers/stores/customers'
-import SalesForm from '../components/SalesForm.vue'
-import type { Sale, CreateSaleRequest } from '../types'
-import { acceptQueued, isQueuedWrite } from '../../../shared/utils/queuedWrite'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { useToastStore } from '../../../shared/stores/toast'
+import { apiErrorMessage } from '../../../shared/utils/apiError'
+import { paymentStatusLabel } from '../../../shared/utils/statusLabels'
+import type { Sale, SaleFilters } from '../types'
 
-const store = useSalesStore()
+const salesStore = useSalesStore()
 const customersStore = useCustomersStore()
+const auth = useAuthStore()
+const toast = useToastStore()
 
-const searchTerm = ref('')
-const showAddForm = ref(false)
+const showForm = ref(false)
+const billSale = ref<Sale | null>(null)
+const error = ref('')
 
-onMounted(() => {
-  store.fetchSales()
-  customersStore.fetchCustomers()
-})
+const filters = reactive<{
+  search: string
+  customer: number | null
+  payment_status: '' | 'PAID' | 'PARTIAL' | 'UNPAID'
+  date_from: string
+  date_to: string
+}>({ search: '', customer: null, payment_status: '', date_from: '', date_to: '' })
 
-const sales = computed(() => store.sales || [])
-const customers = computed(() => customersStore.customers || [])
+const customerOptions = computed(() => customersStore.customers.map(c => ({ value: c.id, label: c.name })))
 
-const filteredSales = computed(() => {
-  if (!searchTerm.value) return sales.value
-  return sales.value.filter(sale =>
-    sale.customer_name?.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    sale.bill_no?.toLowerCase().includes(searchTerm.value.toLowerCase())
-  )
-})
+const unitByProductId = computed(() => Object.fromEntries(salesStore.products.map(p => [p.id, p.unit])))
 
-const totalSpent = computed(() => 
-  sales.value.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0)
-)
+const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize, reset } = usePagination(computed(() => salesStore.sales))
 
-const thisMonthSales = computed(() => {
-  const thisMonth = new Date().getMonth()
-  const thisYear = new Date().getFullYear()
-  return sales.value.filter(s => {
-    const created = new Date(s.date)
-    return created.getMonth() === thisMonth && created.getFullYear() === thisYear
-  }).length
-})
+const totals = computed(() => salesStore.sales.reduce(
+  (acc, sale) => ({
+    total: acc.total + Number(sale.total_amount),
+    received: acc.received + Number(sale.amount_paid),
+    balance: acc.balance + Number(sale.balance),
+  }),
+  { total: 0, received: 0, balance: 0 },
+))
 
-function viewSale(sale: Sale) {
-  // Create a detailed sale view
-  let details = `Bill No: ${sale.bill_no}\n`
-  details += `Customer: ${sale.customer_name}\n`
-  details += `Date: ${sale.date ? formatDate(sale.date) : 'N/A'}\n`
-  details += `Total: ₨${Number(sale.total_amount || 0).toFixed(2)}\n`
-  details += `Status: ${sale.payment_status || 'UNKNOWN'}\n\n`
-
-  if (sale.sale_items && sale.sale_items.length > 0) {
-    details += 'Items:\n'
-    sale.sale_items.forEach(item => {
-      details += `• ${item.product_name} (${item.size_range_name}, ${item.color_name}) x ${item.quantity_dozens} dz @ ₨${item.unit_price} = ₨${item.subtotal}\n`
-    })
-  } else {
-    details += 'Items: No items found'
-  }
-
-  alert(details)
+const activeFilters = (): SaleFilters => {
+  const params: SaleFilters = {}
+  if (filters.search.trim()) params.search = filters.search.trim()
+  if (filters.customer) params.customer = filters.customer
+  if (filters.payment_status) params.payment_status = filters.payment_status
+  if (filters.date_from) params.date_from = filters.date_from
+  if (filters.date_to) params.date_to = filters.date_to
+  return params
 }
 
-function deleteSale(id: number) {
-  if (confirm('Are you sure you want to delete this sale?')) {
-    acceptQueued(() => store.deleteSale(id))
-  }
-}
-
-async function handleSaveSale(payload: CreateSaleRequest) {
+const reload = async () => {
+  error.value = ''
   try {
-    await store.createSale(payload)
-    closeForm()
-    alert('✅ Sale created successfully! Stock has been updated.')
-  } catch (error: any) {
-    if (isQueuedWrite(error)) {
-      closeForm()
-      return
-    }
-    if (error && error.response && error.response.data) {
-      const data = error.response.data
-      const message = typeof data === 'string' ? data : data.message || data.error || JSON.stringify(data)
-      alert(`❌ Sale creation failed: ${message}`)
-    } else {
-      alert('❌ Sale creation failed. Please try again.')
-    }
+    await salesStore.fetchSales(activeFilters())
+  } catch (e) {
+    error.value = apiErrorMessage(e)
   }
 }
 
-function closeForm() {
-  showAddForm.value = false
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => filters.search, () => {
+  reset()
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reload, 300)
+})
+watch(() => [filters.customer, filters.payment_status, filters.date_from, filters.date_to], () => {
+  reset()
+  reload()
+})
+
+const onSaved = async () => {
+  showForm.value = false
+  await reload()
 }
 
-async function togglePaymentStatus(sale: Sale) {
+const removeSale = async (sale: Sale) => {
+  if (!window.confirm('This deletes the bill, its payments, and returns the stock. The customer balance is corrected.')) return
   try {
-    const newStatus = sale.payment_status === 'PAID' ? 'UNPAID' : 'PAID'
-    await acceptQueued(() => store.updateSale(sale.id, { payment_status: newStatus }))
-  } catch (error) {
-    alert('Failed to update payment status')
+    await salesStore.deleteSale(sale.id)
+    toast.success('Sale deleted', sale.bill_no)
+    await customersStore.fetchCustomers()
+  } catch (e) {
+    toast.error('Could not delete sale', apiErrorMessage(e))
   }
 }
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString()
-}
+const formatDate = (value: string) => new Date(value).toLocaleDateString('en-PK')
+const formatMoney = (value: number) => `₨${value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-function getStatusClass(status: string) {
-  if (!status) return 'status-default'
-  
-  switch (status.toUpperCase()) {
-    case 'PAID':
-      return 'status-completed'
-    case 'PARTIAL':
-      return 'status-pending'
-    case 'UNPAID':
-      return 'status-cancelled'
-    default:
-      return 'status-default'
+onMounted(async () => {
+  try {
+    await Promise.all([salesStore.fetchCatalog(), customersStore.fetchCustomers()])
+  } catch (e) {
+    error.value = apiErrorMessage(e)
   }
-}
+  await reload()
+})
+
+onBeforeUnmount(() => clearTimeout(searchTimer))
 </script>
 
 <style scoped>
-.sales-page {
-  padding: 1.5rem;
+.sales-view { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
+.page-head { display: flex; justify-content: space-between; align-items: center; }
+.page-head h1 { margin: 0; font-size: 1.5rem; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.5rem; align-items: start; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.data-table th, .data-table td { padding: 0.5rem; border-bottom: 1px solid #e5e7eb; text-align: left; white-space: nowrap; }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty { text-align: center; opacity: 0.7; }
+.muted { opacity: 0.6; }
+.summary { margin: 0; font-size: 0.9rem; opacity: 0.8; }
+.form-error { color: #b42318; margin: 0; }
+.actions { display: flex; gap: 0.75rem; }
+.link-btn { background: none; border: none; color: #2563eb; cursor: pointer; padding: 0; }
+.link-btn.danger { color: #b42318; }
+.badge { padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #eee; }
+.badge.paid { background: #d1fae5; color: #065f46; }
+.badge.partial { background: #fef3c7; color: #92400e; }
+.badge.unpaid { background: #fee2e2; color: #991b1b; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 2rem 1rem; z-index: 50; }
+.modal { background: #fff; color: #111; border-radius: 10px; padding: 1.25rem; width: min(70rem, 100%); }
+.modal-wide { width: min(50rem, 100%); }
+.modal h2 { margin-top: 0; }
+@media (max-width: 640px) {
+  .page-head { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
 }
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.page-title {
-  font-size: 1.875rem;
-  font-weight: bold;
-  color: #111827;
-}
-
-.loading-state, .error-state {
-  text-align: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #2563eb;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-message {
-  color: #dc2626;
-  margin-bottom: 1rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #2563eb;
-}
-
-.stat-label {
-  color: #6b7280;
-  margin-top: 0.5rem;
-}
-
-.filters-section {
-  margin-bottom: 1.5rem;
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.table-container {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.sales-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.sales-table th {
-  background: #f9fafb;
-  padding: 0.75rem;
-  text-align: left;
-  font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.sales-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.table-row:hover {
-  background: #f9fafb;
-}
-
-.status-completed {
-  background: #d1fae5;
-  color: #065f46;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-pending {
-  background: #fef3c7;
-  color: #92400e;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-cancelled {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-default {
-  background: #f3f4f6;
-  color: #374151;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  padding: 0.25rem 0.5rem;
-  border: none;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.action-btn.view {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.action-btn.delete {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-
-.payment-checkbox {
-  width: 1.125rem;
-  height: 1.125rem;
-  cursor: pointer;
-}
-
-.status-checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-}
-
-.btn-primary:hover {
-  background: #1d4ed8;
-}
-
-.btn-primary:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.btn-primary:disabled:hover {
-  background-color: #9ca3af;
-}
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #374151;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: #d1d5db;
-}
-</style> 
+</style>
