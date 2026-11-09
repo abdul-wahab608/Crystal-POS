@@ -48,7 +48,15 @@ if (!$SkipFrontendBuild) {
     
     # Build Vue app
     Write-Host "Running npm build..."
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     npm run build
+    $ErrorActionPreference = $prevEap
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: npm run build failed."
+        Pop-Location
+        exit 1
+    }
     
     if (!(Test-Path "dist\index.html")) {
         Write-Host "ERROR: Frontend build failed. dist\index.html not found."
