@@ -6,7 +6,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--username', type=str, default='admin')
-        parser.add_argument('--password', type=str, default='admin123')
+        parser.add_argument('--password', type=str, required=True)
 
     def handle(self, *args, **options):
         User = get_user_model()
@@ -17,6 +17,6 @@ class Command(BaseCommand):
             user.set_password(password)
             user.is_active = True
             user.save()
-            self.stdout.write(self.style.SUCCESS(f'Password for {username} reset to {password}'))
+            self.stdout.write(self.style.SUCCESS(f'Password for {username} has been reset'))
         except User.DoesNotExist:
             self.stdout.write(self.style.ERROR(f'User {username} does not exist'))
