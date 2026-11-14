@@ -77,7 +77,7 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 `role` (ADMIN/MANAGER/STAFF) · `phone`
 
 ### customers · `Customer`
-`name` · `phone` · `address` · `city` · `customer_type` (REGULAR/WHOLESALE/RETAIL) · `balance` · `is_active` · `created_at` · `updated_at`  
+`name` · `phone` · `address` · `city` · `customer_type` (REGULAR/WALK_IN) · `balance` · `is_active` · `created_at` · `updated_at`  
 **No email field.**
 
 ### customers · `CustomerTransaction`
@@ -107,7 +107,7 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 `product` FK · `change_type` · `quantity_change` · `date` · `reference` · `notes`
 
 ### sales · `Sale`
-`bill_no` (unique, auto-generated in save()) · `sale_type` (REGULAR/WHOLESALE) · `customer` FK · `date` · `total_amount` · `payment_status` (PAID/UNPAID/PARTIAL) · `created_by` FK  
+`bill_no` (unique, auto-generated in save()) · `sale_type` (WALK_IN/PHONE_ORDER/REGULAR, default REGULAR) · `customer` FK · `date` · `total_amount` · `payment_status` (PAID/UNPAID/PARTIAL) · `created_by` FK  
 **No `receipt_number` field** — use `bill_no`.
 
 ### sales · `SaleItem`
@@ -134,7 +134,7 @@ Base URL: `http://localhost:8010/api` (fixed port — see "Port 8010 is final" g
 `name` · `description` · `category` · `type` · `value` · `current_value` · `purchase_value` · `purchase_date` · `location` · `status` (ACTIVE/INACTIVE/DISPOSED) · `created_at`
 
 ### payments · `Payment`
-`payment_type` (INCOMING/OUTGOING) · `payment_method` (CASH/CHEQUE/BANK_TRANSFER) · `amount` · `status` · `customer` FK · `vendor` FK · `bank_account` FK · `bank_name` · `account_number` · `sale` FK → sales.Sale · `purchase` FK → purchases.Purchase · `direct_payment_to_vendor` FK · `due_date` · `payment_date` · `reference` · `notes` · `original_amount` · `remaining_amount`
+`payment_type` (INCOMING/OUTGOING) · `payment_method` (CASH/CHEQUE/BANK) · `amount` · `status` · `customer` FK · `vendor` FK · `bank_account` FK · `bank_name` · `account_number` · `sale` FK → sales.Sale · `purchase` FK → purchases.Purchase · `direct_payment_to_vendor` FK · `due_date` · `payment_date` · `reference` · `notes` · `original_amount` · `remaining_amount`
 
 ### bank_accounts · `BankAccount`
 `name` · `account_number` (unique) · `bank_name` · `branch` · `ifsc_code` · `is_active` · `created_at` · `updated_at`
@@ -318,7 +318,7 @@ Retired in the 2026 restructure. Do not rebuild these from memory: the purchase 
 - **Aggregation**: `profit/services.py::compute_profit_rows()` builds one row per `SaleItem` (revenue/cost/profit), filterable by `product`, `size_range`, `color`, `city` (via `sale.customer.city` — Sale has no location field of its own), `year`, `month`, `season`, `date_from`/`date_to`. `aggregate()` groups rows by `product`/`month`/`season`/`year`/`location`; `build_trend()` shapes grouped rows for ApexCharts, with an optional `series` dimension for multi-line charts (e.g. one line per article). Quantities are per unit (see "Quantities are in the product's unit"); there is no piece/dozen toggle.
 - **Season buckets** (hardcoded, 4-season): Spring Mar–May, Summer Jun–Aug, Autumn Sep–Nov, Winter Dec–Feb — see `SEASON_BY_MONTH` in services.py.
 - **profit_ratio** = profit_amount / revenue (margin, not markup) throughout.
-- **API**: `GET /api/profit/summary/` (totals, or grouped rows if `?group_by=` given), `GET /api/profit/trend/` (chart-shaped, `?x=` required dimension + optional `?series=`). `cost-components/` and `product-costs/` are read-open (any authenticated user) but write-gated to Admin/Manager via `IsAuthenticatedForReadManagerForWrite` in `profit/views.py`.
+- **API**: `GET /api/profit/summary/` (totals, or grouped rows if `?group_by=` given), `GET /api/profit/trend/` (chart-shaped, `?x=` dimension (defaults to `month`, invalid values 400) + optional `?series=`). `cost-components/` and `product-costs/` are read-open (any authenticated user) but write-gated to Admin/Manager via `IsAuthenticatedForReadManagerForWrite` in `profit/views.py`.
 - **Frontend**: `CostManagementView.vue` (`/profit/costs`) is where costs get entered per product — pick a product, see the current effective breakdown (or the `Product.cop` fallback banner), add dated cost entries, add custom cost fields. `ProfitAnalyticsView.vue` (`/profit`) has the filter bar, KPI cards, ApexCharts trend chart, and breakdown table. Both follow the DecimalField-as-string convention (wrap in `Number(...)`) and never prefix calls with `/api/`.
 - Full test coverage: `backend/profit/tests.py` (21 tests — cost versioning/fallback, aggregation math, permissions) and `frontend/src/modules/profit/stores/__tests__/profit.spec.ts` (9 tests). Verified end-to-end in a real browser (Selenium) against the offline-installed app: cost entry → sale → profit dashboard, including the piece/dozen unit toggle, with zero console errors.
 
