@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from rest_framework.test import APITestCase
 
 from payments.models import Payment
@@ -10,8 +11,27 @@ from .models import Vendor, VendorProduct, VendorTransaction
 
 class VendorAPITests(APITestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='buyer', password='x')
+        self.user = get_user_model().objects.create_user(username='buyer', password='x', role=get_user_model().MANAGER)
         self.client.force_authenticate(self.user)
+
+    def test_staff_cannot_delete_vendor(self):
+        vendor = Vendor.objects.create(name='Acme')
+        staff = get_user_model().objects.create_user(username='clerk', password='x', role=get_user_model().STAFF)
+        self.client.force_authenticate(staff)
+        response = self.client.delete(f'/api/vendors/{vendor.id}/')
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Vendor.objects.filter(pk=vendor.pk).exists())
+
+    def test_balance_stays_exact_over_fractional_movements(self):
+        vendor = Vendor.objects.create(name='Fraction Mills')
+        for amount in ('0.10', '0.10', '0.10'):
+            VendorTransaction.objects.create(vendor=vendor, type=VendorTransaction.PURCHASE, amount=Decimal(amount))
+        VendorTransaction.objects.create(vendor=vendor, type=VendorTransaction.PAYMENT, amount=Decimal('0.05'))
+        vendor.refresh_from_db()
+        self.assertEqual(vendor.balance, Decimal('0.25'))
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT balance FROM vendors_vendor WHERE id = %s', [vendor.pk])
+            self.assertEqual(cursor.fetchone()[0], 0.25)
 
     def test_create_vendor_without_phone_or_contact(self):
         response = self.client.post('/api/vendors/', {'name': 'Bare Vendor', 'is_active': True}, format='json')
@@ -67,7 +87,8 @@ class VendorAPITests(APITestCase):
         vendor = Vendor.objects.create(name='Acme')
         Payment.objects.create(payment_type=Payment.OUTGOING, payment_method=Payment.CASH, amount=Decimal('10'), vendor=vendor)
         response = self.client.delete(f'/api/vendors/{vendor.id}/')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('cannot be deleted', response.data['error'])
         self.assertTrue(Vendor.objects.filter(pk=vendor.pk).exists())
 
     def test_vendor_product_requires_matching_item(self):

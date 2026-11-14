@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from products.models import Product
 from production.services import production_runs_by_product
+from purchases.models import PurchaseItem
 from sales.models import SaleItem
 from .models import ProductCost
 
@@ -21,9 +22,10 @@ UNIT_METRICS = ('quantity', 'profit_per_unit')
 
 MANUAL = 'MANUAL'
 PRODUCTION = 'PRODUCTION'
+PURCHASE = 'PURCHASE'
 COP = 'COP'
 MISSING = 'MISSING'
-SOURCE_WEAKNESS = {MANUAL: 0, PRODUCTION: 1, COP: 2, MISSING: 3}
+SOURCE_WEAKNESS = {MANUAL: 0, PRODUCTION: 1, PURCHASE: 2, COP: 3, MISSING: 4}
 
 
 def season_for_month(month):
@@ -38,6 +40,15 @@ class CostLookup:
             self._history[row.product_id].append((row.valid_from, row.component_type_id, row.amount_per_dozen))
         self._cop = dict(Product.objects.filter(id__in=product_ids).values_list('id', 'cop'))
         self._production = production_runs_by_product(product_ids)
+        self._purchase_costs = defaultdict(list)
+        purchase_lines = (
+            PurchaseItem.objects
+            .filter(product_id__in=product_ids, product__product_type='PURCHASED')
+            .order_by('purchase__date', 'id')
+            .values_list('product_id', 'purchase__date', 'unit_cost')
+        )
+        for product_id, purchased_at, unit_cost in purchase_lines:
+            self._purchase_costs[product_id].append((timezone.localdate(purchased_at), unit_cost))
 
     def breakdown_as_of(self, product_id, as_of):
         latest_by_component = {}
@@ -56,6 +67,14 @@ class CostLookup:
                 return run
         return None
 
+    def purchase_cost_as_of(self, product_id, as_of):
+        cost = None
+        for purchased_on, unit_cost in self._purchase_costs.get(product_id, ()):
+            if purchased_on > as_of:
+                break
+            cost = unit_cost
+        return cost
+
     def resolve(self, product_id, as_of):
         breakdown = self.breakdown_as_of(product_id, as_of)
         if breakdown:
@@ -63,6 +82,9 @@ class CostLookup:
         run = self.production_run_as_of(product_id, as_of)
         if run:
             return run['unit_cost'], PRODUCTION
+        purchase_cost = self.purchase_cost_as_of(product_id, as_of)
+        if purchase_cost is not None and purchase_cost > ZERO:
+            return purchase_cost, PURCHASE
         cop = self._cop.get(product_id) or ZERO
         if cop > ZERO:
             return cop, COP

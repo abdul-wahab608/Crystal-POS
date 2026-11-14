@@ -10,7 +10,7 @@ from .models import ProductionRun
 
 class ProductionRunTests(APITestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='maker', password='x', is_staff=True)
+        self.user = get_user_model().objects.create_user(username='maker', password='x', role='MANAGER')
         self.client.force_authenticate(self.user)
         self.size = SizeRange.objects.create(name='Men (40-46)')
         self.black = Color.objects.create(name='Black')
@@ -56,6 +56,11 @@ class ProductionRunTests(APITestCase):
         self.assertEqual(self.variant.quantity, Decimal('0'))
         self.glue.refresh_from_db()
         self.assertEqual(self.glue.quantity, Decimal('2'))
+
+    def test_run_needs_at_least_one_raw_material_input(self):
+        res = self.client.post('/api/production/runs/', self._run_payload(inputs=[]), format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(ProductionRun.objects.exists())
 
     def test_run_needs_at_least_one_output_item(self):
         res = self.client.post('/api/production/runs/', self._run_payload(items=[]), format='json')

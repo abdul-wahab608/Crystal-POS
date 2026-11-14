@@ -16,11 +16,11 @@ def _reference(run):
     return f"Production run #{run.pk}"
 
 
-def latest_raw_material_unit_costs(raw_material_ids, as_of):
+def latest_raw_material_unit_costs(raw_material_ids):
     latest = {}
     rows = (
         PurchaseItem.objects
-        .filter(raw_material_id__in=raw_material_ids, purchase__date__date__lte=as_of)
+        .filter(raw_material_id__in=raw_material_ids)
         .order_by('purchase__date', 'id')
         .values_list('raw_material_id', 'unit_cost')
     )
@@ -42,10 +42,9 @@ def production_runs_by_product(product_ids):
     for run in runs:
         run_date = timezone.localdate(run.date)
         inputs = list(run.inputs.all())
-        prices = latest_raw_material_unit_costs({i.raw_material_id for i in inputs}, run_date) if inputs else {}
         input_cost = None
-        if inputs and all(i.raw_material_id in prices for i in inputs):
-            input_cost = sum((i.quantity * prices[i.raw_material_id] for i in inputs), ZERO)
+        if inputs and all(i.unit_cost is not None for i in inputs):
+            input_cost = sum((i.quantity * i.unit_cost for i in inputs), ZERO)
 
         outputs = defaultdict(lambda: ZERO)
         units = set()
@@ -81,6 +80,7 @@ def create_run(*, user, reference, notes, items, inputs):
                 'inputs': f'Insufficient {material.name}: need {quantity}, have {material.quantity}.'
             })
 
+    prices = latest_raw_material_unit_costs({line['raw_material'].pk for line in inputs})
     run = ProductionRun.objects.create(created_by=user, reference=reference, notes=notes)
     for line in items:
         variant = line['variant']
@@ -95,7 +95,10 @@ def create_run(*, user, reference, notes, items, inputs):
             notes=f"{variant}",
         )
     for line in inputs:
-        ProductionRunInput.objects.create(run=run, raw_material=line['raw_material'], quantity=line['quantity'])
+        ProductionRunInput.objects.create(
+            run=run, raw_material=line['raw_material'], quantity=line['quantity'],
+            unit_cost=prices.get(line['raw_material'].pk),
+        )
         RawMaterialUsage.objects.create(
             raw_material=line['raw_material'],
             quantity_used=line['quantity'],

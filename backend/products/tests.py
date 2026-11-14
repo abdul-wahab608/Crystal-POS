@@ -1,3 +1,4 @@
+from products.models import ProductHistory
 from datetime import date
 from decimal import Decimal
 
@@ -119,7 +120,7 @@ class ProductApiTests(APITestCase):
 
 class VariantApiTests(APITestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='owner', password='pw', is_staff=True)
+        self.user = get_user_model().objects.create_user(username='owner', password='pw', role='MANAGER', is_staff=True)
         self.client.force_authenticate(self.user)
         self.men = SizeRange.objects.create(name='Men (40-46)')
         self.women = SizeRange.objects.create(name='Women (36-41)')
@@ -262,3 +263,45 @@ class ProductCostSourceTests(APITestCase):
         )
         sources = {r['name']: r['cost_source'] for r in self.client.get('/api/products/').data}
         self.assertEqual(sources, {'Manual': 'MANUAL', 'Cop': 'COP', 'Missing': 'MISSING'})
+
+
+class OpeningStockLedgerTests(APITestCase):
+    def setUp(self):
+        self.manager = get_user_model().objects.create_user(username='opening_mgr', password='pw', role='MANAGER', is_staff=True)
+        self.client.force_authenticate(self.manager)
+        self.size = SizeRange.objects.create(name='Opening Size')
+        self.color = Color.objects.create(name='Opening Color')
+
+    def test_create_with_quantity_records_opening_history_row(self):
+        response = self.client.post('/api/products/', {'name': 'Opening Tee', 'unit': 'PCS', 'cop': '5', 'quantity': '50'}, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        row = ProductHistory.objects.get(product_id=response.data['id'])
+        self.assertEqual(row.change_type, ProductHistory.OPENING)
+        self.assertEqual(row.quantity_change, Decimal('50'))
+        self.assertEqual(row.reference, 'Opening stock')
+
+    def test_create_without_quantity_records_no_history(self):
+        response = self.client.post('/api/products/', {'name': 'No Stock Tee', 'unit': 'PCS', 'cop': '5'}, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertFalse(ProductHistory.objects.filter(product_id=response.data['id']).exists())
+
+    def test_create_with_variants_records_the_variant_total_as_opening(self):
+        response = self.client.post('/api/products/', {
+            'name': 'Variant Tee', 'unit': 'PCS', 'cop': '5', 'size_ranges': [self.size.id],
+            'variants': [{'size_range': self.size.id, 'color': self.color.id, 'quantity': '7'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        product = Product.objects.get(pk=response.data['id'])
+        self.assertEqual(product.quantity, Decimal('7'))
+        self.assertEqual(ProductHistory.objects.get(product=product).quantity_change, Decimal('7'))
+
+    def test_bulk_import_with_quantity_writes_the_same_opening_row(self):
+        response = self.client.post('/api/products/bulk_import/', {
+            'data': [{'name': 'Imported Tee', 'unit': 'PCS', 'cop': '5', 'quantity': '12'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        product = Product.objects.get(name='Imported Tee')
+        self.assertEqual(product.quantity, Decimal('12'))
+        row = ProductHistory.objects.get(product=product)
+        self.assertEqual(row.change_type, ProductHistory.OPENING)
+        self.assertEqual(row.quantity_change, Decimal('12'))

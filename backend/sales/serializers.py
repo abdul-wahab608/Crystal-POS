@@ -66,6 +66,8 @@ class SaleSerializer(serializers.ModelSerializer):
             for field in ('items', 'amount_received', 'payment_method'):
                 if field in attrs:
                     raise serializers.ValidationError({field: 'Cannot be changed after the sale is created.'})
+            if 'customer' in attrs and attrs['customer'] != self.instance.customer:
+                raise serializers.ValidationError({'customer': 'Cannot be changed after the sale is created.'})
             return attrs
 
         items = attrs.get('items')

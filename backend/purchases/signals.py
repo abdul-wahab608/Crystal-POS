@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from .models import Purchase, PurchaseItem
 from products.models import Product, ProductHistory, ProductVariant
 from raw_materials.models import RawMaterial
-from vendors.models import Vendor, VendorTransaction
+from vendors.models import VendorTransaction, adjust_vendor_balance
 
 
 def _purchase_reference(purchase_id):
@@ -29,7 +29,7 @@ def reverse_vendor_transaction_on_purchase(sender, instance, **kwargs):
         vendor_id=instance.vendor_id, type=VendorTransaction.PURCHASE, reference=_purchase_reference(instance.id),
     )
     for row in ledger_rows:
-        Vendor.objects.filter(pk=instance.vendor_id).update(balance=F('balance') - row.amount)
+        adjust_vendor_balance(instance.vendor_id, -row.amount)
     ledger_rows.delete()
 
 

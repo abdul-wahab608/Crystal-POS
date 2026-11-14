@@ -1,9 +1,9 @@
 from django.db.models import ProtectedError
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from users.permissions import IsManagerUser
 from .models import RawMaterial, RawMaterialUsage
 from .serializers import RawMaterialSerializer, RawMaterialUsageSerializer
 from core.mixins import BulkImportMixin, BulkExportMixin, BatchActionsMixin
@@ -17,6 +17,16 @@ class RawMaterialViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, vi
 
     batch_update_fields = ['reorder_level']
 
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsAuthenticated(), IsManagerUser()]
+        return super().get_permissions()
+
+    def get_batch_permissions(self):
+        if self.action == 'bulk_delete':
+            return [IsAuthenticated(), IsManagerUser()]
+        return super().get_batch_permissions()
+
     import_entity_type = 'raw_material'
     import_unique_fields = ['name', 'unit']
     import_fields = {
@@ -24,7 +34,7 @@ class RawMaterialViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, vi
             'required': True,
             'type': 'string',
             'example': 'Steel Rod',
-            'aliases': ['material_name', 'item', 'item_name', 'material', 'raw_material'],
+            'aliases': ['material_name', 'material name', 'item', 'item_name', 'material', 'raw_material'],
         },
         'unit': {
             'required': True,
@@ -37,14 +47,14 @@ class RawMaterialViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, vi
             'type': 'decimal',
             'default': 0,
             'example': '100',
-            'aliases': ['qty', 'stock', 'initial_quantity', 'initial_stock', 'opening_stock'],
+            'aliases': ['qty', 'stock', 'initial_quantity', 'initial_stock', 'initial stock', 'opening_stock'],
         },
         'reorder_level': {
             'required': False,
             'type': 'decimal',
             'default': 0,
             'example': '10',
-            'aliases': ['reorder', 'minimum_stock', 'min_stock', 'threshold'],
+            'aliases': ['reorder', 'reorder level', 'minimum_stock', 'min_stock', 'threshold'],
         },
     }
 
@@ -60,11 +70,16 @@ class RawMaterialViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, vi
     def get_queryset(self):
         return RawMaterial.objects.all()
 
-    def perform_destroy(self, instance):
+    def destroy(self, request, *args, **kwargs):
+        material = self.get_object()
         try:
-            instance.delete()
+            material.delete()
         except ProtectedError:
-            raise ValidationError({'detail': f'{instance.name} is used in purchases or production and cannot be deleted.'})
+            return Response(
+                {'error': f'{material.name} is used in purchases or production and cannot be deleted.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'])
     def low_stock(self, request):

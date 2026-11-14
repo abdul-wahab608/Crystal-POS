@@ -1,6 +1,8 @@
+from raw_materials.models import RawMaterialHistory
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
 from raw_materials.models import RawMaterial, RawMaterialUsage
@@ -9,7 +11,7 @@ from vendors.models import Vendor
 
 class RawMaterialApiTests(APITestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='owner', password='pw', is_staff=True)
+        self.user = get_user_model().objects.create_user(username='owner', password='pw', is_staff=True, role=get_user_model().MANAGER)
         self.client.force_authenticate(self.user)
         self.vendor = Vendor.objects.create(name='Chaman Textiles')
 
@@ -112,7 +114,8 @@ class RawMaterialApiTests(APITestCase):
             'items': [{'raw_material': material.id, 'quantity': 5, 'unit_cost': 2}],
         }, format='json')
         response = self.client.delete(f'/api/raw-materials/materials/{material.id}/')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('cannot be deleted', response.data['error'])
         self.assertTrue(RawMaterial.objects.filter(pk=material.pk).exists())
 
     def test_bulk_import_json(self):
@@ -120,3 +123,54 @@ class RawMaterialApiTests(APITestCase):
         res = self.client.post('/api/raw-materials/materials/bulk_import/', {'data': rows}, format='json')
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(res.data['success_count'], 1)
+
+
+class RawMaterialOpeningStockTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username='raw_opening_admin', password='pw', role='ADMIN', is_staff=True)
+        self.client.force_authenticate(self.admin)
+
+    def test_create_with_quantity_records_opening_row(self):
+        response = self.client.post('/api/raw-materials/materials/', {'name': 'Opening Steel', 'unit': 'KG', 'quantity': '100'}, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        material = RawMaterial.objects.get(pk=response.data['id'])
+        self.assertEqual(material.quantity, Decimal('100'))
+        row = RawMaterialHistory.objects.get(raw_material=material)
+        self.assertEqual(row.change_type, RawMaterialHistory.OPENING)
+        self.assertEqual(row.quantity_change, Decimal('100'))
+        self.assertEqual(row.reference, 'Opening stock')
+
+    def test_create_without_quantity_records_no_row(self):
+        response = self.client.post('/api/raw-materials/materials/', {'name': 'Empty Steel', 'unit': 'KG'}, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertFalse(RawMaterialHistory.objects.filter(raw_material_id=response.data['id']).exists())
+
+    def test_bulk_import_with_quantity_writes_the_same_opening_row(self):
+        response = self.client.post('/api/raw-materials/materials/bulk_import/', {
+            'data': [{'name': 'Imported Steel', 'unit': 'KG', 'quantity': '25'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        material = RawMaterial.objects.get(name='Imported Steel')
+        self.assertEqual(material.quantity, Decimal('25'))
+        row = RawMaterialHistory.objects.get(raw_material=material)
+        self.assertEqual(row.change_type, RawMaterialHistory.OPENING)
+        self.assertEqual(row.quantity_change, Decimal('25'))
+
+
+class RawMaterialImportHeaderTests(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='import_admin', password='pw', role='ADMIN', is_staff=True)
+        self.client.force_authenticate(self.user)
+
+    def test_spreadsheet_headers_with_spaces_are_auto_mapped(self):
+        csv = b'Material Name,Unit,Initial Stock,Reorder Level\nSteel Rod,KG,100,10\n'
+        upload = SimpleUploadedFile('materials.csv', csv, content_type='text/csv')
+        response = self.client.post('/api/raw-materials/materials/preview_import/', {'file': upload}, format='multipart')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data['suggested_mappings'], {
+            'Material Name': 'name',
+            'Unit': 'unit',
+            'Initial Stock': 'quantity',
+            'Reorder Level': 'reorder_level',
+        })
+

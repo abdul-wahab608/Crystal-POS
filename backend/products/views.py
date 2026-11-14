@@ -39,6 +39,11 @@ class ColorViewSet(ProtectedDeleteMixin, viewsets.ModelViewSet):
 class ProductVariantViewSet(viewsets.ModelViewSet):
     queryset = ProductVariant.objects.all()
     serializer_class = ProductVariantSerializer
+
+    def get_permissions(self):
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManagerUser()]
+        return super().get_permissions()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['product__name', 'size_range__name', 'color__name']
     ordering_fields = ['quantity']
@@ -70,12 +75,12 @@ class ProductViewSet(ProtectedDeleteMixin, BulkImportMixin, BulkExportMixin, Bat
     protected_delete_message = 'This product already has sales or purchases, so it cannot be deleted.'
 
     def get_permissions(self):
-        if self.action == 'destroy':
+        if self.action in ('destroy', 'update', 'partial_update'):
             return [IsAuthenticated(), IsManagerUser()]
         return super().get_permissions()
 
     def get_batch_permissions(self):
-        if self.action == 'bulk_delete':
+        if self.action in ('bulk_delete', 'bulk_update', 'bulk_activate', 'bulk_deactivate'):
             return [IsAuthenticated(), IsManagerUser()]
         return super().get_batch_permissions()
 

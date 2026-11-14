@@ -66,7 +66,7 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['id', 'name', 'unit', 'cop', 'cost_source', 'quantity', 'product_type', 'size_ranges', 'variants', 'last_updated', 'created_at']
-        extra_kwargs = {'cop': {'required': False, 'default': 0}}
+        extra_kwargs = {'cop': {'required': False, 'default': 0, 'min_value': 0}}
 
     def get_cost_source(self, obj):
         lookup = self.context.get('cost_lookup') or CostLookup([obj.pk])
@@ -109,12 +109,20 @@ class ProductSerializer(serializers.ModelSerializer):
         product.size_ranges.set(size_ranges)
         if variants is not None:
             self._write_variants(product, variants)
+        if product.quantity:
+            ProductHistory.objects.create(
+                product=product,
+                change_type=ProductHistory.OPENING,
+                quantity_change=product.quantity,
+                reference='Opening stock',
+            )
         return product
 
     @transaction.atomic
     def update(self, instance, validated_data):
         size_ranges = validated_data.pop('size_ranges', None)
         variants = validated_data.pop('variants', None)
+        validated_data.pop('quantity', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()

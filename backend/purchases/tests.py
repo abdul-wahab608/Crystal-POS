@@ -12,7 +12,7 @@ from .models import Purchase, PurchaseItem
 
 class PurchaseAPITests(APITestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='buyer', password='x')
+        self.user = get_user_model().objects.create_user(username='buyer', password='x', role=get_user_model().MANAGER)
         self.client.force_authenticate(self.user)
         self.vendor = Vendor.objects.create(name='Acme Fabrics')
         self.size = SizeRange.objects.create(name='Standard')
@@ -81,6 +81,32 @@ class PurchaseAPITests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data['total_amount'], '10.00')
+
+    def test_staff_cannot_create_purchases(self):
+        staff = get_user_model().objects.create_user(username='clerk', password='x', role=get_user_model().STAFF)
+        self.client.force_authenticate(staff)
+        response = self.client.post('/api/purchases/', self.payload([self.product_line(self.cloth)]), format='json')
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Purchase.objects.exists())
+
+    def test_duplicate_vendor_bill_number_is_rejected(self):
+        first = self.payload([self.product_line(self.cloth)])
+        first['invoice_number'] = 'FH-001'
+        self.assertEqual(self.client.post('/api/purchases/', first, format='json').status_code, 201)
+        again = self.payload([self.product_line(self.cloth)])
+        again['invoice_number'] = 'fh-001'
+        response = self.client.post('/api/purchases/', again, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('invoice_number', response.data)
+        self.assertEqual(Purchase.objects.count(), 1)
+
+    def test_same_bill_number_from_another_vendor_is_allowed(self):
+        first = self.payload([self.product_line(self.cloth)])
+        first['invoice_number'] = 'FH-001'
+        self.client.post('/api/purchases/', first, format='json')
+        other = Vendor.objects.create(name='Other Mills')
+        second = {'vendor': other.id, 'invoice_number': 'FH-001', 'items': [self.product_line(self.cloth)]}
+        self.assertEqual(self.client.post('/api/purchases/', second, format='json').status_code, 201)
 
     def test_create_records_creator(self):
         response = self.client.post('/api/purchases/', self.payload([self.product_line(self.cloth)]), format='json')

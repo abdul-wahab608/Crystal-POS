@@ -108,3 +108,12 @@ class VendorTransaction(models.Model):
 
     def __str__(self):
         return f"{self.vendor.name} - {self.type} - {self.amount}"
+
+
+def adjust_vendor_balance(vendor_id, delta):
+    vendor = Vendor.objects.select_for_update().filter(pk=vendor_id).first()
+    if vendor is None:
+        return
+    # Adding zero turns a negative zero result into 0.00, which would otherwise be stored and shown as -0.00.
+    vendor.balance = (vendor.balance + delta).quantize(Decimal('0.01')) + Decimal('0')
+    vendor.save(update_fields=['balance'])

@@ -67,6 +67,14 @@ class PurchaseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['date', 'total_amount', 'created_by']
 
+    def validate(self, attrs):
+        invoice_number = attrs.get('invoice_number')
+        if invoice_number and Purchase.objects.filter(
+            vendor=attrs['vendor'], invoice_number__iexact=invoice_number,
+        ).exists():
+            raise serializers.ValidationError({'invoice_number': f'{attrs["vendor"].name} already has a bill numbered {invoice_number}.'})
+        return attrs
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep['items'] = PurchaseItemSerializer(instance.items.all(), many=True).data

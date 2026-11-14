@@ -10,7 +10,7 @@ from .models import Asset, AssetLog
 
 class AssetTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='as_user', password='pw', role=User.STAFF)
+        self.user = User.objects.create_user(username='as_user', password='pw', role=User.MANAGER)
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 

@@ -15,6 +15,7 @@ from raw_materials.models import RawMaterial
 from sales.models import Sale, SaleItem
 from vendors.models import Vendor
 from .models import CostComponentType, ProductCost
+from production.services import latest_raw_material_unit_costs
 from .services import CostLookup, aggregate, build_trend, compute_profit_rows, summary_totals
 
 User = get_user_model()
@@ -389,8 +390,11 @@ class ProductionDerivedCostTests(APITestCase):
         run = ProductionRun.objects.create()
         _set_datetime(ProductionRun, run.pk, when)
         ProductionRunItem.objects.create(run=run, variant=self.variant, quantity=Decimal(output))
+        prices = latest_raw_material_unit_costs({raw_material.pk for raw_material, _ in inputs})
         for raw_material, quantity in inputs:
-            ProductionRunInput.objects.create(run=run, raw_material=raw_material, quantity=Decimal(quantity))
+            ProductionRunInput.objects.create(
+                run=run, raw_material=raw_material, quantity=Decimal(quantity), unit_cost=prices.get(raw_material.pk),
+            )
         return run
 
     def _sale(self, when, product, quantity, subtotal):
@@ -408,7 +412,7 @@ class ProductionDerivedCostTests(APITestCase):
         self.assertEqual(row['cost'], Decimal('1000.00'))
         self.assertEqual(row['profit_amount'], Decimal('200.00'))
 
-    def test_latest_purchase_on_or_before_run_date_prices_the_run(self):
+    def test_later_purchase_does_not_reprice_an_existing_run(self):
         self._purchase(self.leather, '600.00', datetime(2026, 2, 15, 10, 0))
         self._sale(datetime(2026, 3, 1, 12, 0), self.pair, '1', '600.00')
         row = compute_profit_rows(product_id=self.pair.id)[0]
@@ -557,3 +561,50 @@ class ProductionDerivedCostTests(APITestCase):
         row = compute_profit_rows(product_id=self.pair.id)[0]
         self.assertEqual(row['cost_source'], 'COP')
         self.assertEqual(row['cost'], Decimal('30.00'))
+
+
+class PurchasedProductCostTests(TestCase):
+    def setUp(self):
+        self.size = SizeRange.objects.create(name='M')
+        self.color = Color.objects.create(name='Blue')
+        self.customer = Customer.objects.create(name='Buyer', city='Lahore')
+        self.jeans = Product.objects.create(
+            name='Denim Jeans', unit='PCS', cop=Decimal('900'), quantity=0, product_type='PURCHASED',
+        )
+        self.jeans.size_ranges.add(self.size)
+        vendor = Vendor.objects.create(name='Denim Mills')
+        purchase = Purchase.objects.create(vendor=vendor, total_amount=Decimal('14000'))
+        _set_datetime(Purchase, purchase.pk, datetime(2026, 1, 10, 10, 0))
+        PurchaseItem.objects.create(
+            purchase=purchase, product=self.jeans, size_range=self.size, color=self.color,
+            quantity=Decimal('20'), unit_cost=Decimal('700'), subtotal=Decimal('14000'),
+        )
+
+    def _sale(self, when, quantity, subtotal):
+        sale = Sale.objects.create(customer=self.customer, total_amount=Decimal(subtotal))
+        _set_sale_date(sale, when)
+        return SaleItem.objects.create(
+            sale=sale, product=self.jeans, size_range=self.size, color=self.color,
+            quantity=Decimal(quantity), unit_price=Decimal(subtotal) / Decimal(quantity), subtotal=Decimal(subtotal),
+        )
+
+    def test_purchase_unit_cost_is_used_instead_of_cop(self):
+        self._sale(datetime(2026, 3, 1, 12, 0), '2', '3000.00')
+        row = compute_profit_rows(product_id=self.jeans.id)[0]
+        self.assertEqual(row['cost_source'], 'PURCHASE')
+        self.assertEqual(row['cost'], Decimal('1400.00'))
+        self.assertEqual(row['profit_amount'], Decimal('1600.00'))
+
+    def test_manual_cost_overrides_purchase_unit_cost(self):
+        ProductCost.objects.create(product=self.jeans, component_type=CostComponentType.objects.get(name='Labor'),
+                                   amount_per_dozen=Decimal('300.00'), valid_from=date(2026, 1, 1))
+        self._sale(datetime(2026, 3, 1, 12, 0), '2', '3000.00')
+        row = compute_profit_rows(product_id=self.jeans.id)[0]
+        self.assertEqual(row['cost_source'], 'MANUAL')
+        self.assertEqual(row['cost'], Decimal('600.00'))
+
+    def test_sale_before_the_purchase_falls_back_to_cop(self):
+        self._sale(datetime(2026, 1, 5, 12, 0), '2', '3000.00')
+        row = compute_profit_rows(product_id=self.jeans.id)[0]
+        self.assertEqual(row['cost_source'], 'COP')
+        self.assertEqual(row['cost'], Decimal('1800.00'))

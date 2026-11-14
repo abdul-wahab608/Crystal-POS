@@ -217,7 +217,7 @@ class CustomerSalesReportView(APIView):
 
 
 def _sum(queryset, field):
-    return queryset.aggregate(total=Sum(field))['total'] or Decimal('0')
+    return (queryset.aggregate(total=Sum(field))['total'] or Decimal('0')).quantize(Decimal('0.01'))
 
 
 @api_view(['GET'])
@@ -243,6 +243,7 @@ def dashboard_summary(request):
         'month': {'start': month_start, 'end': today, **period(month_start)},
         'outstanding_customer_balance': _sum(Customer.objects.filter(balance__gt=0), 'balance'),
         'vendor_payables': _sum(Vendor.objects.filter(balance__gt=0), 'balance'),
+        'vendor_credits': -_sum(Vendor.objects.filter(balance__lt=0), 'balance'),
         'vendor_bills_unpaid': _sum(Purchase.objects.all(), 'total_amount') - _sum(
             Payment.objects.filter(payment_type=Payment.OUTGOING, purchase__isnull=False), 'amount'
         ),

@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import RawMaterial, RawMaterialUsage
+from django.db import transaction
+from .models import RawMaterial, RawMaterialHistory, RawMaterialUsage
 
 
 class RawMaterialSerializer(serializers.ModelSerializer):
@@ -11,6 +12,18 @@ class RawMaterialSerializer(serializers.ModelSerializer):
             'id', 'name', 'unit', 'quantity', 'reorder_level', 'needs_reorder', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'needs_reorder', 'created_at', 'updated_at']
+
+    @transaction.atomic
+    def create(self, validated_data):
+        material = super().create(validated_data)
+        if material.quantity:
+            RawMaterialHistory.objects.create(
+                raw_material=material,
+                change_type=RawMaterialHistory.OPENING,
+                quantity_change=material.quantity,
+                reference='Opening stock',
+            )
+        return material
 
     def update(self, instance, validated_data):
         validated_data.pop('quantity', None)

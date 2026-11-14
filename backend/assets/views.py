@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+from users.permissions import IsManagerUser
 from .models import Asset, AssetLog
 from .serializers import AssetSerializer, AssetLogSerializer
 from core.mixins import BulkImportMixin, BulkExportMixin, BatchActionsMixin
@@ -9,6 +11,11 @@ from core.mixins import BulkImportMixin, BulkExportMixin, BatchActionsMixin
 class AssetViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, viewsets.ModelViewSet):
     queryset = Asset.objects.all()
     serializer_class = AssetSerializer
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return super().get_permissions()
+        return [IsAuthenticated(), IsManagerUser()]
     
     # Batch update allowed fields
     batch_update_fields = ['status', 'location', 'category']

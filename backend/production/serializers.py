@@ -30,7 +30,7 @@ class ProductionRunInputSerializer(serializers.ModelSerializer):
 
 class ProductionRunSerializer(serializers.ModelSerializer):
     items = ProductionRunItemSerializer(many=True, min_length=1)
-    inputs = ProductionRunInputSerializer(many=True, required=False)
+    inputs = ProductionRunInputSerializer(many=True, min_length=1)
 
     class Meta:
         model = ProductionRun
@@ -39,7 +39,7 @@ class ProductionRunSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items = validated_data.pop('items')
-        inputs = validated_data.pop('inputs', [])
+        inputs = validated_data.pop('inputs')
         return create_run(
             user=self.context['request'].user,
             reference=validated_data.get('reference', ''),

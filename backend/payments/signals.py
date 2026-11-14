@@ -1,8 +1,7 @@
-from django.db.models import F
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from customers.models import CustomerTransaction
-from vendors.models import Vendor, VendorTransaction
+from vendors.models import VendorTransaction, adjust_vendor_balance
 from .models import Payment
 
 
@@ -49,6 +48,6 @@ def on_payment_deleted(sender, instance, **kwargs):
             type=VendorTransaction.PAYMENT,
             reference=_payment_reference(instance),
         ).delete()
-        Vendor.objects.filter(pk=instance.vendor_id).update(balance=F('balance') + instance.amount)
+        adjust_vendor_balance(instance.vendor_id, instance.amount)
     if instance.sale_id:
         instance.sale.sync_payment_status()

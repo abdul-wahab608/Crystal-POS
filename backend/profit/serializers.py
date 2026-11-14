@@ -20,3 +20,12 @@ class ProductCostSerializer(serializers.ModelSerializer):
             'amount_per_dozen', 'valid_from', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def validate(self, attrs):
+        if ProductCost.objects.filter(
+            product=attrs['product'], component_type=attrs['component_type'], valid_from=attrs['valid_from'],
+        ).exists():
+            raise serializers.ValidationError(
+                'This product already has a cost for this component on this date. Choose another date or edit the existing entry.'
+            )
+        return attrs

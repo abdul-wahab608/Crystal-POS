@@ -193,12 +193,11 @@ class SaleWorkflowTest(TestCase):
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data['payment_status'], 'UNPAID')
 
-    def test_customer_update_allowed(self):
+    def test_customer_cannot_be_changed_after_creation(self):
         sale_id = self.post_sale([self.line(self.size_s, self.red, 1)]).data['id']
         other = Customer.objects.create(name='Other')
         resp = self.client.patch(f'/api/sales/{sale_id}/', {'customer': other.id}, format='json')
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.data['customer'], other.id)
+        self.assertEqual(resp.status_code, 400)
 
     def test_sale_item_endpoint_removed(self):
         self.assertEqual(self.client.get('/api/sales/sale-items/').status_code, 404)

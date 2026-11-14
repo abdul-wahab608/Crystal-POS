@@ -1,10 +1,10 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from .models import Vendor, VendorTransaction, VendorProduct
 from .serializers import VendorSerializer, VendorTransactionSerializer, VendorProductSerializer
 from core.mixins import BulkImportMixin, BulkExportMixin, BatchActionsMixin
+from users.permissions import IsManagerUser
 
 # Create your views here.
 
@@ -100,10 +100,25 @@ class VendorViewSet(BulkImportMixin, BulkExportMixin, BatchActionsMixin, viewset
 
         return super().update(request, *args, **kwargs)
 
-    def perform_destroy(self, instance):
-        if instance.purchases.exists() or instance.payments.exists():
-            raise ValidationError({'detail': 'This vendor has purchases or payments and cannot be deleted.'})
-        instance.delete()
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsManagerUser()]
+        return super().get_permissions()
+
+    def get_batch_permissions(self):
+        if self.action == 'bulk_delete':
+            return [IsManagerUser()]
+        return super().get_batch_permissions()
+
+    def destroy(self, request, *args, **kwargs):
+        vendor = self.get_object()
+        if vendor.purchases.exists() or vendor.payments.exists():
+            return Response(
+                {'error': 'This vendor has purchases or payments and cannot be deleted.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        vendor.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'])
     def products(self, request, pk=None):

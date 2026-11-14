@@ -12,6 +12,10 @@ class UserSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'This field is required.'})
+        if self.instance is not None and self.instance == self.context['request'].user:
+            loses_admin = attrs.get('role', User.ADMIN) != User.ADMIN or attrs.get('is_active', True) is False
+            if self.instance.is_admin() and loses_admin:
+                raise serializers.ValidationError({'role': 'You cannot remove your own admin access.'})
         return attrs
 
     def create(self, validated_data):

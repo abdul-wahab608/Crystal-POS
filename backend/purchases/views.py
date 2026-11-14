@@ -5,6 +5,7 @@ from django.db.models.functions import Coalesce
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 from payments.models import Payment
+from users.permissions import IsManagerUser, IsStaffUser
 from products.models import ProductVariant
 from .models import Purchase
 from .serializers import PurchaseSerializer
@@ -16,6 +17,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.select_related('vendor').prefetch_related('items__product', 'items__raw_material')
     serializer_class = PurchaseSerializer
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsStaffUser()]
+        return [IsManagerUser()]
 
     def get_queryset(self):
         queryset = super().get_queryset()

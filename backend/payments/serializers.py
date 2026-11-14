@@ -107,6 +107,7 @@ class PaymentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = PAYMENT_WRITE_FIELDS
+        read_only_fields = ['status']
 
     def validate(self, data):
         for field in self.LOCKED_FIELDS:

@@ -60,11 +60,13 @@ class ProductHistory(models.Model):
     PURCHASE = 'PURCHASE'
     ADJUSTMENT = 'ADJUSTMENT'
     PRODUCTION = 'PRODUCTION'
+    OPENING = 'OPENING'
     CHANGE_TYPE_CHOICES = [
         (SALE, 'Sale'),
         (PURCHASE, 'Purchase'),
         (ADJUSTMENT, 'Adjustment'),
         (PRODUCTION, 'Production'),
+        (OPENING, 'Opening stock'),
     ]
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='history')
     change_type = models.CharField(max_length=15, choices=CHANGE_TYPE_CHOICES)

@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.db.models import ProtectedError
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -9,7 +10,7 @@ from rest_framework.views import APIView
 from users.permissions import IsManagerUser
 from .models import CostComponentType, ProductCost
 from .serializers import CostComponentTypeSerializer, ProductCostSerializer
-from .services import CostLookup, aggregate, build_trend, compute_profit_rows, summary_totals
+from .services import GROUP_KEY_FUNCS, CostLookup, aggregate, build_trend, compute_profit_rows, summary_totals
 
 
 class IsAuthenticatedForReadManagerForWrite(IsAuthenticated):
@@ -38,7 +39,10 @@ class CostComponentTypeViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         if self.get_object().is_system:
             return Response({'error': 'System cost components cannot be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
-        return super().destroy(request, *args, **kwargs)
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response({'error': 'This cost component is used by product costs and cannot be deleted.'}, status=status.HTTP_409_CONFLICT)
 
 
 class ProductCostViewSet(viewsets.ModelViewSet):
@@ -123,6 +127,8 @@ class ProfitSummaryView(ProfitFilterMixin, APIView):
     def get(self, request):
         filters = self._parse_filters(request)
         group_by = request.query_params.get('group_by')
+        if group_by and group_by not in GROUP_KEY_FUNCS:
+            return Response({'error': f'group_by must be one of: {", ".join(GROUP_KEY_FUNCS)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         rows = compute_profit_rows(**filters)
 
@@ -138,6 +144,8 @@ class ProfitTrendView(ProfitFilterMixin, APIView):
         filters = self._parse_filters(request)
         metric = request.query_params.get('metric', 'profit_amount')
         x = request.query_params.get('x', 'month')
+        if x not in GROUP_KEY_FUNCS:
+            return Response({'error': f'x must be one of: {", ".join(GROUP_KEY_FUNCS)}'}, status=status.HTTP_400_BAD_REQUEST)
         series = request.query_params.get('series') or None
 
         rows = compute_profit_rows(**filters)

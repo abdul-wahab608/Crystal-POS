@@ -27,6 +27,7 @@ class ProductionRunInput(models.Model):
     run = models.ForeignKey(ProductionRun, on_delete=models.CASCADE, related_name='inputs')
     raw_material = models.ForeignKey('raw_materials.RawMaterial', on_delete=models.PROTECT, related_name='production_inputs')
     quantity = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
     def __str__(self):
         return f"{self.raw_material.name} x {self.quantity}"
