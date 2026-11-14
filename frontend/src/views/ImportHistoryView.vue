@@ -1,5 +1,8 @@
 <template>
-  <div class="import-history-page">
+  <div v-if="!canViewHistory" class="import-history-page">
+    <p class="error-message">You do not have access to import history. Ask an administrator.</p>
+  </div>
+  <div v-else class="import-history-page">
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">Import History</h1>
@@ -145,6 +148,7 @@ import { useToastStore } from '../shared/stores/toast'
 import { getImportableEntities, IMPORT_CONFIGS } from '../shared/constants/importFields'
 import PaginationBar from '../shared/components/PaginationBar.vue'
 import { usePagination } from '../shared/composables/usePagination'
+import { useAuthStore } from '../shared/stores/auth'
 
 interface ImportSession {
   id: number
@@ -274,8 +278,11 @@ function refresh() {
   fetchSessions()
 }
 
+const auth = useAuthStore()
+const canViewHistory = computed(() => auth.isSuperuser)
+
 onMounted(() => {
-  fetchSessions()
+  if (canViewHistory.value) fetchSessions()
 })
 </script>
 

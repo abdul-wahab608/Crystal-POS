@@ -60,7 +60,7 @@
         <h3>Inputs (raw materials used)</h3>
         <button type="button" class="btn-secondary small" @click="inputs.push(emptyInput())">Add input</button>
       </div>
-      <p v-if="!inputs.length" class="muted">No raw materials consumed by this run.</p>
+      <p v-if="!inputs.length" class="form-error">A production run must consume at least one raw material. Add an input.</p>
       <div v-for="(input, index) in inputs" :key="index" class="line-card">
         <div class="line-fields">
           <div class="field wide">
@@ -87,7 +87,7 @@
 
       <div class="form-actions">
         <button type="button" class="btn-secondary" @click="$emit('cancel')">Cancel</button>
-        <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save run' }}</button>
+        <button type="submit" class="btn-primary" :disabled="saving || !inputs.length">{{ saving ? 'Saving...' : 'Save run' }}</button>
       </div>
     </form>
   </div>
@@ -171,6 +171,7 @@ function setSize(output: OutputDraft, value: string | number | null) {
 function validate(): boolean {
   problems.value = []
   if (!outputs.value.length) problems.value.push('Add at least one output.')
+  if (!inputs.value.length) problems.value.push('Add at least one raw material input.')
   outputs.value.forEach((output, index) => {
     outputProblems(output, productById(output.product)).forEach(problem => problems.value.push(`Output ${index + 1}: ${problem}`))
   })

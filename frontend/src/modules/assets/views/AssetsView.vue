@@ -11,7 +11,7 @@
           </svg>
           Import
         </button>
-        <button @click="showAddForm = true" class="btn-primary">
+        <button v-if="authStore.canManageAssets" @click="showAddForm = true" class="btn-primary">
           <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
@@ -126,8 +126,8 @@
               <td>{{ formatDate(asset.purchase_date) }}</td>
               <td>
                 <div class="actions">
-                  <button @click="editAsset(asset)" class="action-btn edit">Edit</button>
-                  <button @click="deleteAsset(asset)" class="action-btn delete">Delete</button>
+                  <button v-if="authStore.canManageAssets" @click="editAsset(asset)" class="action-btn edit">Edit</button>
+                  <button v-if="authStore.canManageAssets" @click="deleteAsset(asset)" class="action-btn delete">Delete</button>
                 </div>
               </td>
             </tr>
@@ -137,7 +137,7 @@
         <!-- Empty State -->
         <div v-if="filteredAssets.length === 0" class="empty-state">
           <p>No assets found.</p>
-          <button @click="showAddForm = true" class="btn-primary">Add Your First Asset</button>
+          <button v-if="authStore.canManageAssets" @click="showAddForm = true" class="btn-primary">Add Your First Asset</button>
         </div>
         <PaginationBar
           :page="page"
@@ -270,7 +270,7 @@
     <!-- Import Wizard -->
     <ImportWizard 
       v-if="showImportWizard"
-      entityType="assets"
+      entityType="asset"
       @close="handleImportClose"
     />
   </div>
@@ -398,11 +398,12 @@ function errorMessage(error: any): string {
 
 async function saveAsset() {
   formError.value = ''
+  const payload = { ...form.value, purchase_date: form.value.purchase_date || null }
   try {
     if (showEditForm.value) {
-      await acceptQueued(() => store.updateAsset(editingAsset.value!.id, form.value))
+      await acceptQueued(() => store.updateAsset(editingAsset.value!.id, payload))
     } else {
-      await acceptQueued(() => store.createAsset(form.value))
+      await acceptQueued(() => store.createAsset(payload))
     }
     closeForm()
   } catch (error) {

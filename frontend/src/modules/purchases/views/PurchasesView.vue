@@ -2,7 +2,7 @@
   <div class="purchases-page">
     <div class="page-header">
       <h1 class="page-title">Purchases</h1>
-      <button class="btn-primary" @click="formOpen = true">New purchase</button>
+      <button v-if="authStore.isManager" class="btn-primary" @click="formOpen = true">New purchase</button>
     </div>
 
     <div class="filters">
@@ -53,7 +53,7 @@
                 <span class="badge" :class="purchase.payment_status.toLowerCase()">{{ paymentStatusLabel(purchase.payment_status) }}</span>
               </td>
               <td>
-                <button class="link-btn danger" @click="confirmDelete(purchase)">Delete</button>
+                <button v-if="authStore.isManager" class="link-btn danger" @click="confirmDelete(purchase)">Delete</button>
               </td>
             </tr>
             <tr v-if="expandedId === purchase.id" class="detail-row">
@@ -113,6 +113,8 @@ import PurchaseForm from '../components/PurchaseForm.vue'
 import PaginationBar from '../../../shared/components/PaginationBar.vue'
 import { usePagination } from '../../../shared/composables/usePagination'
 import type { Purchase } from '../types'
+import { useAuthStore } from '../../../shared/stores/auth'
+const authStore = useAuthStore()
 
 const purchasesStore = usePurchasesStore()
 const toast = useToastStore()

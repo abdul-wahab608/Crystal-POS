@@ -5,6 +5,7 @@ export const COST_MISSING_MESSAGE = 'Cost missing: add production or a manual co
 const LABELS: Record<CostSource, string> = {
   MANUAL: 'Manual cost',
   PRODUCTION: 'From production',
+  PURCHASE: 'From purchase price',
   COP: 'Cost of production (fallback)',
   MISSING: 'Cost missing',
 }

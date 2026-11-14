@@ -137,6 +137,7 @@
 </template>
 
 <script setup lang="ts">
+import { acceptQueued } from '../utils/queuedWrite'
 import { ref, computed } from 'vue'
 import CheckCircleIcon from '@heroicons/vue/24/outline/CheckCircleIcon'
 import CheckIcon from '@heroicons/vue/24/outline/CheckIcon'
@@ -179,18 +180,18 @@ function handleDelete() {
 }
 
 async function confirmDelete() {
-  const result = await batchStore.bulkDelete(props.entityType)
   showDeleteModal.value = false
-  emit('action-complete', 'delete', result)
+  const result = await acceptQueued(() => batchStore.bulkDelete(props.entityType))
+  if (result) emit('action-complete', 'delete', result)
 }
 
 async function handleActivate() {
-  const result = await batchStore.bulkActivate(props.entityType)
-  emit('action-complete', 'activate', result)
+  const result = await acceptQueued(() => batchStore.bulkActivate(props.entityType))
+  if (result) emit('action-complete', 'activate', result)
 }
 
 async function handleDeactivate() {
-  const result = await batchStore.bulkDeactivate(props.entityType)
-  emit('action-complete', 'deactivate', result)
+  const result = await acceptQueued(() => batchStore.bulkDeactivate(props.entityType))
+  if (result) emit('action-complete', 'deactivate', result)
 }
 </script>

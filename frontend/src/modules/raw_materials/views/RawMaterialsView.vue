@@ -19,6 +19,7 @@
     </div>
 
     <p v-if="loadError" class="form-error">{{ loadError }}</p>
+    <p v-if="deleteError" class="form-error">{{ deleteError }}</p>
     <RawMaterialTable
       :materials="pageItems"
       @edit="openForm"
@@ -50,7 +51,7 @@
 
     <RawMaterialHistoryModal v-if="historyMaterial" :material="historyMaterial" @close="closeModals" />
 
-    <ImportWizard v-if="showImportWizard" entityType="raw_materials" @close="handleImportClose" />
+    <ImportWizard v-if="showImportWizard" entityType="raw_material" @close="handleImportClose" />
   </div>
 </template>
 
@@ -74,6 +75,7 @@ import type { RawMaterial } from '../types'
 const store = useRawMaterialsStore()
 const authStore = useAuthStore()
 const toast = useToastStore()
+const deleteError = ref('')
 
 const loadError = ref('')
 const formOpen = ref(false)
@@ -108,10 +110,12 @@ function openHistory(material: RawMaterial) {
 
 async function confirmDelete(material: RawMaterial) {
   if (!window.confirm(`Delete ${material.name} (${material.unit})?`)) return
+  deleteError.value = ''
   try {
     await acceptQueued(() => store.deleteMaterial(material.id))
   } catch (e) {
-    toast.error('Could not delete raw material', errorMessageOf(e))
+    deleteError.value = errorMessageOf(e)
+    toast.error('Could not delete raw material', deleteError.value)
   }
 }
 

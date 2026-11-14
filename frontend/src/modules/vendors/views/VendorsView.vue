@@ -2,6 +2,7 @@
   <div class="vendors-page">
     <div class="page-header">
       <h1 class="page-title">Vendors</h1>
+      <button v-if="authStore.canImport" class="btn-secondary" @click="showImportWizard = true">Import</button>
       <button class="btn-primary" @click="openForm(null)">Add vendor</button>
     </div>
 
@@ -12,6 +13,8 @@
     </div>
 
     <p v-if="loadError" class="form-error">{{ loadError }}</p>
+    <p v-if="deleteError" class="form-error">{{ deleteError }}</p>
+    <ImportWizard v-if="showImportWizard" entityType="vendor" @close="handleImportClose" />
 
     <VendorTable
       :vendors="pageItems"
@@ -55,6 +58,8 @@ import VendorStats from '../components/VendorStats.vue'
 import PaginationBar from '../../../shared/components/PaginationBar.vue'
 import { usePagination } from '../../../shared/composables/usePagination'
 import type { Vendor } from '../types'
+import { useAuthStore } from '../../../shared/stores/auth'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
 
 const vendorsStore = useVendorsStore()
 const toast = useToastStore()
@@ -62,6 +67,9 @@ const route = useRoute()
 
 const search = ref('')
 const loadError = ref('')
+const deleteError = ref('')
+const showImportWizard = ref(false)
+const authStore = useAuthStore()
 const formOpen = ref(false)
 const editing = ref<Vendor | null>(null)
 const expandedId = ref<number | null>(null)
@@ -96,13 +104,20 @@ function toggleLedger(vendor: Vendor) {
   expandedId.value = expandedId.value === vendor.id ? null : vendor.id
 }
 
+function handleImportClose() {
+  showImportWizard.value = false
+  vendorsStore.fetchVendors()
+}
+
 async function confirmDelete(vendor: Vendor) {
   if (!window.confirm(`Delete vendor ${vendor.name}?`)) return
+  deleteError.value = ''
   try {
     await acceptQueued(() => vendorsStore.deleteVendor(vendor.id))
     if (expandedId.value === vendor.id) expandedId.value = null
   } catch (e) {
-    toast.error('Could not delete vendor', errorMessageOf(e))
+    deleteError.value = errorMessageOf(e)
+    toast.error('Could not delete vendor', deleteError.value)
   }
 }
 

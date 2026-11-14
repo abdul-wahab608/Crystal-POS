@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
 import SalesForm from '../components/SalesForm.vue'
@@ -180,7 +181,11 @@ const onSaved = async () => {
 const removeSale = async (sale: Sale) => {
   if (!window.confirm('This deletes the bill, its payments, and returns the stock. The customer balance is corrected.')) return
   try {
-    await salesStore.deleteSale(sale.id)
+    const deleted = await acceptQueued(async () => {
+      await salesStore.deleteSale(sale.id)
+      return true
+    })
+    if (!deleted) return
     toast.success('Sale deleted', sale.bill_no)
     await customersStore.fetchCustomers()
   } catch (e) {

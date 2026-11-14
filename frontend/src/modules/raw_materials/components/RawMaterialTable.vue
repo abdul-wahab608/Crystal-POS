@@ -26,7 +26,7 @@
             <button class="link-btn" @click="$emit('edit', material)">Edit</button>
             <button class="link-btn" @click="$emit('usage', material)">Record usage</button>
             <button class="link-btn" @click="$emit('history', material)">History</button>
-            <button class="link-btn danger" @click="$emit('delete', material)">Delete</button>
+            <button v-if="authStore.isManager" class="link-btn danger" @click="$emit('delete', material)">Delete</button>
           </td>
         </tr>
       </tbody>
@@ -37,6 +37,8 @@
 
 <script setup lang="ts">
 import type { RawMaterial } from '../types'
+import { useAuthStore } from '../../../shared/stores/auth'
+const authStore = useAuthStore()
 
 defineProps<{ materials: RawMaterial[] }>()
 defineEmits<{ edit: [material: RawMaterial]; usage: [material: RawMaterial]; history: [material: RawMaterial]; delete: [material: RawMaterial] }>()

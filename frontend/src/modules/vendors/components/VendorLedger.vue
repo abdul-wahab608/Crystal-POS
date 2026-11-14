@@ -5,7 +5,7 @@
         <span class="muted">Opening balance</span>
         <strong>{{ opening.toFixed(2) }}</strong>
         <span class="muted"> · Current balance</span>
-        <strong>{{ Number(vendor.balance).toFixed(2) }}</strong>
+        <strong>{{ vendorBalanceLabel(vendor.balance) }}</strong>
       </div>
       <button v-if="!paying" class="btn-primary small" @click="paying = true">Record payment</button>
     </div>
@@ -61,6 +61,7 @@ import { useVendorsStore } from '../stores/vendors'
 import { buildLedger, openingBalance } from '../utils/ledger'
 import { errorMessageOf } from '../../raw_materials/utils/errorMessage'
 import type { LedgerRow, Vendor, VendorTransaction } from '../types'
+import { vendorBalanceLabel } from '../utils/balance'
 
 const props = defineProps<{ vendor: Vendor }>()
 

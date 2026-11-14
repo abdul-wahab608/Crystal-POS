@@ -16,7 +16,7 @@
           <td>{{ vendor.name }}</td>
           <td>{{ vendor.contact_person || '-' }}<span v-if="vendor.phone" class="muted"> · {{ vendor.phone }}</span></td>
           <td>{{ vendor.city || '-' }}</td>
-          <td class="num" :class="{ owed: Number(vendor.balance) > 0 }">{{ Number(vendor.balance).toFixed(2) }}</td>
+          <td class="num" :class="{ owed: Number(vendor.balance) > 0, credit: Number(vendor.balance) < 0 }">{{ vendorBalanceLabel(vendor.balance) }}</td>
           <td>
             <span :class="vendor.is_active ? 'badge badge-ok' : 'badge badge-off'">{{ vendor.is_active ? 'Active' : 'Inactive' }}</span>
           </td>
@@ -25,7 +25,7 @@
               {{ expandedId === vendor.id ? 'Hide ledger' : 'Ledger' }}
             </button>
             <button class="link-btn" @click="$emit('edit', vendor)">Edit</button>
-            <button class="link-btn danger" @click="$emit('delete', vendor)">Delete</button>
+            <button v-if="authStore.isManager" class="link-btn danger" @click="$emit('delete', vendor)">Delete</button>
           </td>
         </tr>
       </tbody>
@@ -36,6 +36,9 @@
 
 <script setup lang="ts">
 import type { Vendor } from '../types'
+import { useAuthStore } from '../../../shared/stores/auth'
+import { vendorBalanceLabel } from '../utils/balance'
+const authStore = useAuthStore()
 
 defineProps<{ vendors: Vendor[]; expandedId: number | null }>()
 defineEmits<{ 'toggle-ledger': [vendor: Vendor]; edit: [vendor: Vendor]; delete: [vendor: Vendor] }>()

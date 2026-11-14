@@ -4,6 +4,7 @@
 import { defineStore } from 'pinia'
 import api from '../api/axios'
 import { isQueuedWrite } from '../utils/queuedWrite'
+import { useAuthStore } from './auth'
 import { IMPORT_CONFIGS, type EntityImportConfig, type ImportFieldConfig } from '../constants/importFields'
 
 export interface ImportPreviewRow {
@@ -340,6 +341,7 @@ export const useImportStore = defineStore('import', {
 
     // Fetch import history
     async fetchImportHistory(filters?: { entity_type?: string; status?: string }) {
+      if (!useAuthStore().isSuperuser) return
       this.historyLoading = true
       this.historyError = null
 

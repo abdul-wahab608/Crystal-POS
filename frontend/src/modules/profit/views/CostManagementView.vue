@@ -93,18 +93,19 @@
         <h3>Add a Cost Entry</h3>
         <div class="form-row">
           <div class="form-group">
-            <label>Component</label>
-            <select v-model.number="form.component_type" required class="filter-select">
+            <label for="cost-component">Component</label>
+            <select id="cost-component" v-model.number="form.component_type" required class="filter-select">
+              <option :value="null" disabled>Choose a component</option>
               <option v-for="c in profitStore.costComponents" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Amount per dozen (₨)</label>
-            <input v-model.number="form.amount_per_dozen" type="number" min="0" step="0.01" required class="filter-input" />
+            <label for="cost-amount">Amount per dozen (₨)</label>
+            <input id="cost-amount" v-model.number="form.amount_per_dozen" type="number" min="0" step="0.01" required class="filter-input" />
           </div>
           <div class="form-group">
-            <label>Effective from</label>
-            <input v-model="form.valid_from" type="date" required class="filter-input" />
+            <label for="cost-valid-from">Effective from</label>
+            <input id="cost-valid-from" v-model="form.valid_from" type="date" required class="filter-input" />
           </div>
           <button type="submit" class="btn-primary" :disabled="submitting || !form.component_type">Save</button>
         </div>
@@ -173,6 +174,7 @@ import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
 import PaginationBar from '../../../shared/components/PaginationBar.vue'
 import { usePagination } from '../../../shared/composables/usePagination'
 import { COST_MISSING_MESSAGE, costSourceLabel } from '../utils/costSource'
+import { errorMessageOf } from '../../raw_materials/utils/errorMessage'
 
 const profitStore = useProfitStore()
 const productsStore = useProductsStore()
@@ -195,17 +197,6 @@ const form = ref<{ component_type: number | null; amount_per_dozen: number; vali
 const productOptions = computed(() =>
   productsStore.products.map((p) => ({ value: p.id, label: `${p.name} (${p.unit})` })),
 )
-
-function errorMessage(error: any): string {
-  const data = error?.response?.data
-  if (!data) return error?.message || 'Request failed'
-  if (typeof data === 'string') return data
-  if (data.detail) return String(data.detail)
-  if (data.error) return String(data.error)
-  return Object.entries(data)
-    .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(' ') : msgs}`)
-    .join('\n')
-}
 
 const totalPerDozen = computed(() => Number(profitStore.currentCost?.unit_cost || 0))
 
@@ -240,7 +231,7 @@ async function submitCost() {
     await loadForProduct()
     form.value.amount_per_dozen = 0
   } catch (error) {
-    costError.value = errorMessage(error)
+    costError.value = errorMessageOf(error)
   } finally {
     submitting.value = false
   }
@@ -252,7 +243,7 @@ async function removeCost(id: number) {
     await acceptQueued(() => profitStore.deleteProductCost(id))
     if (selectedProductId.value) await profitStore.fetchCurrentCost(selectedProductId.value)
   } catch (error) {
-    costError.value = errorMessage(error)
+    costError.value = errorMessageOf(error)
   }
 }
 
@@ -265,15 +256,12 @@ async function addComponent() {
     newComponentName.value = ''
     showAddComponent.value = false
   } catch (error) {
-    componentError.value = errorMessage(error)
+    componentError.value = errorMessageOf(error)
   }
 }
 
 onMounted(async () => {
   await Promise.all([productsStore.fetchProducts(), profitStore.fetchCostComponents()])
-  if (form.value.component_type === null && profitStore.costComponents.length) {
-    form.value.component_type = profitStore.costComponents[0].id
-  }
 })
 </script>
 

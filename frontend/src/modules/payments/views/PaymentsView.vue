@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import PaymentForm from '../components/PaymentForm.vue'
 import PaginationBar from '../../../shared/components/PaginationBar.vue'
@@ -151,7 +152,11 @@ const removePayment = async (payment: Payment) => {
     : `${party}'s balance will be restored.`
   if (!window.confirm(`Delete this payment of ${formatMoney(Number(payment.amount))}? ${effect}`)) return
   try {
-    await paymentsStore.deletePayment(payment.id)
+    const deleted = await acceptQueued(async () => {
+      await paymentsStore.deletePayment(payment.id)
+      return true
+    })
+    if (!deleted) return
     toast.success('Payment deleted')
     await reload()
   } catch (e) {

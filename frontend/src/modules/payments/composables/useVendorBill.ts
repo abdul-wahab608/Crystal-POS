@@ -10,7 +10,7 @@ export function useVendorBill() {
 
   const options = computed(() => bills.value.map(bill => ({
     value: bill.id,
-    label: `Purchase #${bill.id} · ${new Date(bill.date).toLocaleDateString()} · unpaid ${formatMoney(bill.unpaid_amount)}`,
+    label: `Invoice ${bill.invoice_number || 'none'} · Purchase #${bill.id} · ${new Date(bill.date).toLocaleDateString()} · unpaid ${formatMoney(bill.unpaid_amount)}`,
   })))
 
   const selectedBill = computed(() => bills.value.find(bill => bill.id === billId.value) ?? null)

@@ -61,11 +61,11 @@
             <td>{{ colorNames(product).join(', ') || '—' }}</td>
             <td class="num">{{ Number(product.quantity) }} {{ product.unit }}</td>
             <td v-if="authStore.isManager" class="num">{{ Number(product.cop) > 0 ? Number(product.cop).toFixed(2) : '—' }}</td>
-            <td v-if="authStore.isManager">{{ costSourceLabel(product.cost_source) }}</td>
+            <td v-if="authStore.isManager">Profit uses: {{ costSourceLabel(product.cost_source) }}</td>
             <td>{{ product.product_type === 'PURCHASED' ? 'Purchased' : 'Manufactured' }}</td>
             <td>
               <div class="actions">
-                <button class="action-btn edit" @click="openForm(product)">Edit</button>
+                <button v-if="authStore.isManager" class="action-btn edit" @click="openForm(product)">Edit</button>
                 <button v-if="authStore.isManager" class="action-btn delete" @click="removeProduct(product)">Delete</button>
               </div>
             </td>
@@ -109,7 +109,7 @@
 
     <ProductFormModal v-if="formOpen" :product="editingProduct" @close="closeForm" />
 
-    <ImportWizard v-if="showImportWizard" entityType="products" @close="handleImportClose" />
+    <ImportWizard v-if="showImportWizard" entityType="product" @close="handleImportClose" />
   </div>
 </template>
 

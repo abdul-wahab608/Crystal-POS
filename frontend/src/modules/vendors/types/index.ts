@@ -50,7 +50,7 @@ export interface VendorPaymentPayload {
   purchase?: number
   payment_method: 'CASH' | 'BANK' | 'CHEQUE' | 'PARCHI'
   amount: number
-  bank_name?: string
+  bank_account?: number
   reference: string
   notes: string
 }

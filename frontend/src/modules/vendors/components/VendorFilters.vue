@@ -1,7 +1,7 @@
 <template>
   <input
     v-model="search"
-    class="border px-2 py-1 rounded w-full mb-4"
+    class="form-input w-full mb-4"
     placeholder="Search..."
   />
 </template>

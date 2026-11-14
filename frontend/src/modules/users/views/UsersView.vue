@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Users Management</h1>
-      <button @click="showAddForm = true" class="btn-primary">
+      <button v-if="authStore.canManageUsers" @click="showAddForm = true" class="btn-primary">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
         </svg>
@@ -18,9 +18,9 @@
     </div>
 
     <!-- Error State -->
-    <div v-else-if="store.error" class="error-state">
-      <p class="error-message">{{ store.error }}</p>
-      <button @click="store.fetchUsers()" class="btn-secondary">Try Again</button>
+    <div v-else-if="!authStore.canManageUsers || store.error" class="error-state">
+      <p class="error-message">{{ authStore.canManageUsers ? store.error : 'You do not have access to user management. Ask an administrator.' }}</p>
+      <button v-if="authStore.canManageUsers" @click="store.fetchUsers()" class="btn-secondary">Try Again</button>
     </div>
 
     <!-- Content -->
@@ -91,8 +91,8 @@
               <td>{{ formatDate(user.last_login) }}</td>
               <td>
                 <div class="actions">
-                  <button @click="editUser(user)" class="action-btn edit">Edit</button>
-                  <button v-if="user.id !== authStore.user?.id" @click="deleteUser(user.id)" class="action-btn delete">Delete</button>
+                  <button v-if="authStore.canManageUsers" @click="editUser(user)" class="action-btn edit">Edit</button>
+                  <button v-if="authStore.canManageUsers && user.id !== authStore.user?.id" @click="deleteUser(user.id)" class="action-btn delete">Delete</button>
                 </div>
               </td>
             </tr>
@@ -102,7 +102,7 @@
         <!-- Empty State -->
         <div v-if="filteredUsers.length === 0" class="empty-state">
           <p>No users found.</p>
-          <button @click="showAddForm = true" class="btn-primary">Add Your First User</button>
+          <button v-if="authStore.canManageUsers" @click="showAddForm = true" class="btn-primary">Add Your First User</button>
         </div>
         <PaginationBar
           :page="page"
@@ -263,7 +263,7 @@ function errorMessage(error: any): string {
 }
 
 onMounted(() => {
-  store.fetchUsers()
+  if (authStore.canManageUsers) store.fetchUsers()
 })
 
 const users = computed(() => store.users || [])

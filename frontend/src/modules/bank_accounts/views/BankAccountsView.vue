@@ -2,7 +2,7 @@
   <div class="bank-accounts-page">
     <div class="page-header">
       <h1 class="page-title">Bank Accounts</h1>
-      <button class="btn-primary" @click="showAddForm = true">Add Bank Account</button>
+      <button v-if="authStore.isManager" class="btn-primary" @click="showAddForm = true">Add Bank Account</button>
     </div>
 
     <!-- Stats Cards -->
@@ -36,6 +36,7 @@
             <th>Bank Name</th>
             <th>Branch</th>
             <th>IFSC Code</th>
+            <th class="num">Balance</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -47,6 +48,7 @@
             <td>{{ account.bank_name }}</td>
             <td>{{ account.branch || '-' }}</td>
             <td>{{ account.ifsc_code || '-' }}</td>
+            <td class="num">{{ Number(account.balance).toFixed(2) }}</td>
             <td>
               <span :class="getStatusClass(account.is_active)">
                 {{ account.is_active ? 'Active' : 'Inactive' }}
@@ -54,17 +56,17 @@
             </td>
             <td>
               <div class="actions">
-                <button class="action-btn edit" @click="editAccount(account)" title="Edit">
+                <button v-if="authStore.isManager" class="action-btn edit" @click="editAccount(account)" title="Edit">
                   ✏️
                 </button>
                 <button 
-                  class="action-btn toggle" 
+                  v-if="authStore.isManager" class="action-btn toggle" 
                   @click="toggleStatus(account.id)" 
                   :title="account.is_active ? 'Deactivate' : 'Activate'"
                 >
                   {{ account.is_active ? '🔴' : '🟢' }}
                 </button>
-                <button class="action-btn delete" @click="deleteAccount(account.id)" title="Delete">
+                <button v-if="authStore.isManager" class="action-btn delete" @click="deleteAccount(account.id)" title="Delete">
                   🗑️
                 </button>
               </div>
@@ -84,7 +86,7 @@
 
       <div v-if="store.bankAccounts.length === 0 && !store.loading" class="empty-state">
         <p>No bank accounts found.</p>
-        <button class="btn-primary" @click="showAddForm = true">Add First Account</button>
+        <button v-if="authStore.isManager" class="btn-primary" @click="showAddForm = true">Add First Account</button>
       </div>
     </div>
 
@@ -217,6 +219,8 @@ import type { BankAccount, CreateBankAccount } from '../types'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
 import PaginationBar from '../../../shared/components/PaginationBar.vue'
 import { usePagination } from '../../../shared/composables/usePagination'
+import { useAuthStore } from '../../../shared/stores/auth'
+const authStore = useAuthStore()
 
 const store = useBankAccountsStore()
 const { page, pageSize, totalPages, pageItems, total, goTo, setPageSize } = usePagination(computed(() => store.bankAccounts))

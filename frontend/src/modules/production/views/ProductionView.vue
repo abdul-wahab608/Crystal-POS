@@ -41,7 +41,7 @@
               <span v-if="!run.inputs.length" class="muted">None</span>
             </td>
             <td>
-              <button class="link-btn danger" @click="confirmDelete(run)">Delete</button>
+              <button v-if="authStore.isManager" class="link-btn danger" @click="confirmDelete(run)">Delete</button>
             </td>
           </tr>
         </tbody>
@@ -74,6 +74,8 @@ import PaginationBar from '../../../shared/components/PaginationBar.vue'
 import { errorMessageOf } from '../../raw_materials/utils/errorMessage'
 import ProductionRunForm from '../components/ProductionRunForm.vue'
 import type { ProductionRun } from '../types'
+import { useAuthStore } from '../../../shared/stores/auth'
+const authStore = useAuthStore()
 
 const productionStore = useProductionStore()
 const toast = useToastStore()

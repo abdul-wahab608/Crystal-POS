@@ -212,7 +212,7 @@ export const IMPORT_CONFIGS: Record<string, EntityImportConfig> = {
   raw_material: {
     entityType: 'raw_material',
     displayName: 'Raw Materials',
-    apiEndpoint: '/raw-materials',
+    apiEndpoint: '/raw-materials/materials',
     uniqueFields: ['name', 'unit'],
     fields: [
       {
@@ -221,7 +221,7 @@ export const IMPORT_CONFIGS: Record<string, EntityImportConfig> = {
         required: true,
         type: 'string',
         example: 'Steel Rod',
-        aliases: ['material_name', 'item', 'item_name', 'material', 'raw_material'],
+        aliases: ['material_name', 'material name', 'item', 'item_name', 'material', 'raw_material'],
       },
       {
         key: 'unit',
@@ -238,7 +238,7 @@ export const IMPORT_CONFIGS: Record<string, EntityImportConfig> = {
         type: 'decimal',
         default: 0,
         example: '100',
-        aliases: ['qty', 'stock', 'initial_quantity', 'initial_stock', 'opening_stock'],
+        aliases: ['qty', 'stock', 'initial_quantity', 'initial_stock', 'initial stock', 'opening_stock'],
       },
       {
         key: 'reorder_level',
@@ -247,7 +247,7 @@ export const IMPORT_CONFIGS: Record<string, EntityImportConfig> = {
         type: 'decimal',
         default: 0,
         example: '10',
-        aliases: ['reorder', 'minimum_stock', 'min_stock', 'threshold'],
+        aliases: ['reorder', 'reorder level', 'minimum_stock', 'min_stock', 'threshold'],
       },
     ],
   },

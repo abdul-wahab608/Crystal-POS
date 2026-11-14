@@ -19,7 +19,7 @@ export interface CreateAssetRequest {
   type: string
   current_value: number
   purchase_value: number
-  purchase_date: string
+  purchase_date: string | null
   location: string
   status: string
 }

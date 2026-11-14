@@ -2,8 +2,11 @@
   <div class="customers-view">
     <header class="page-head">
       <h1>Customers</h1>
+      <button v-if="auth.canImport" type="button" class="secondary-btn" @click="showImportWizard = true">Import</button>
       <button type="button" class="primary-btn" @click="openForm(null)">Add customer</button>
     </header>
+
+    <ImportWizard v-if="showImportWizard" entityType="customer" @close="handleImportClose" />
 
     <section class="filters">
       <input v-model="search" type="search" class="form-input" placeholder="Search name or phone" aria-label="Search customers" />
@@ -125,6 +128,7 @@
 </template>
 
 <script setup lang="ts">
+import { acceptQueued } from '../../../shared/utils/queuedWrite'
 import { ref, computed, watch, onMounted } from 'vue'
 import CustomerForm from '../components/CustomerForm.vue'
 import PaymentForm from '../../payments/components/PaymentForm.vue'
@@ -138,11 +142,18 @@ import { apiErrorMessage } from '../../../shared/utils/apiError'
 import { customerBalanceLabel, paymentStatusLabel } from '../../../shared/utils/statusLabels'
 import type { Customer, LedgerRow } from '../types'
 import type { Sale } from '../../sales/types'
+import ImportWizard from '../../../shared/components/ImportWizard/ImportWizard.vue'
 
 const customersStore = useCustomersStore()
 const salesStore = useSalesStore()
 const auth = useAuthStore()
 const toast = useToastStore()
+const showImportWizard = ref(false)
+
+function handleImportClose() {
+  showImportWizard.value = false
+  customersStore.fetchCustomers()
+}
 
 const search = ref('')
 const city = ref('')
@@ -219,7 +230,12 @@ const removeCustomer = async () => {
   if (!selected.value) return
   if (!window.confirm(`Delete ${selected.value.name}? This cannot be undone.`)) return
   try {
-    await customersStore.deleteCustomer(selected.value.id)
+    const id = selected.value.id
+    const deleted = await acceptQueued(async () => {
+      await customersStore.deleteCustomer(id)
+      return true
+    })
+    if (!deleted) return
     selectedId.value = null
     toast.success('Customer deleted')
   } catch (e) {

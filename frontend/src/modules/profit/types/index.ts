@@ -30,7 +30,7 @@ export interface CurrentCostComponent {
   valid_from: string
 }
 
-export type CostSource = 'MANUAL' | 'PRODUCTION' | 'COP' | 'MISSING'
+export type CostSource = 'MANUAL' | 'PRODUCTION' | 'PURCHASE' | 'COP' | 'MISSING'
 
 export interface ProductionRunCost {
   run_id: number

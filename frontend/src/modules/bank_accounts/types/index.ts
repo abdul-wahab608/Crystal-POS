@@ -6,6 +6,7 @@ export interface BankAccount {
   branch?: string
   ifsc_code?: string
   is_active: boolean
+  balance: string
   created_at: string
   updated_at: string
 }

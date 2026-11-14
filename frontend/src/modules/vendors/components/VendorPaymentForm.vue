@@ -22,8 +22,16 @@
         <small v-if="selectedBill" class="muted">Unpaid on this bill: {{ formatMoney(Number(selectedBill.unpaid_amount)) }}</small>
       </div>
       <div v-if="form.payment_method === 'BANK'" class="field">
-        <label :for="`pay-bank-${vendor.id}`">Bank name *</label>
-        <input :id="`pay-bank-${vendor.id}`" v-model="form.bank_name" type="text" class="form-input" required />
+        <label :for="`pay-bank-${vendor.id}`">Bank account *</label>
+        <SearchableSelect
+          v-if="bankOptions.length"
+          :id="`pay-bank-${vendor.id}`"
+          v-model="bankAccountId"
+          :options="bankOptions"
+          placeholder="Search bank account"
+          required
+        />
+        <small v-else class="muted">No bank account yet. Add one on the Bank Accounts page.</small>
       </div>
       <div class="field">
         <label :for="`pay-ref-${vendor.id}`">Reference</label>
@@ -43,9 +51,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import SearchableSelect from '../../../shared/components/SearchableSelect.vue'
 import { useVendorsStore } from '../stores/vendors'
+import { useBankAccountsStore } from '../../bank_accounts/stores/bank_accounts'
 import { acceptQueued } from '../../../shared/utils/queuedWrite'
 import { errorMessageOf } from '../../raw_materials/utils/errorMessage'
 import { useVendorBill } from '../../payments/composables/useVendorBill'
@@ -56,9 +65,15 @@ const props = defineProps<{ vendor: Vendor }>()
 const emit = defineEmits<{ success: []; cancel: [] }>()
 
 const vendorsStore = useVendorsStore()
+const bankStore = useBankAccountsStore()
 const { billId, options: billOptions, selectedBill, loadBills, billError } = useVendorBill()
+const bankAccountId = ref<number | null>(null)
+const bankOptions = computed(() => bankStore.activeAccounts.map(b => ({ value: b.id, label: `${b.name} (${b.bank_name})` })))
 
-onMounted(() => loadBills(props.vendor.id))
+onMounted(() => {
+  loadBills(props.vendor.id)
+  bankStore.fetchBankAccounts()
+})
 
 function onBillChange(value: string | number | null) {
   billId.value = value === null ? null : Number(value)
@@ -67,13 +82,11 @@ function onBillChange(value: string | number | null) {
 const form = reactive<{
   amount: number | null
   payment_method: VendorPaymentPayload['payment_method']
-  bank_name: string
   reference: string
   notes: string
 }>({
   amount: null,
   payment_method: 'CASH',
-  bank_name: '',
   reference: '',
   notes: '',
 })
@@ -91,6 +104,10 @@ async function submit() {
     error.value = billMessage
     return
   }
+  if (form.payment_method === 'BANK' && bankAccountId.value === null) {
+    error.value = 'Choose the bank account for a bank transfer.'
+    return
+  }
   saving.value = true
   try {
     await acceptQueued(() => vendorsStore.recordPayment({
@@ -98,7 +115,7 @@ async function submit() {
       purchase: billId.value ?? undefined,
       payment_method: form.payment_method,
       amount: Number(form.amount),
-      bank_name: form.payment_method === 'BANK' ? form.bank_name : undefined,
+      bank_account: form.payment_method === 'BANK' ? bankAccountId.value ?? undefined : undefined,
       reference: form.reference,
       notes: form.notes,
     }))

@@ -56,6 +56,10 @@
             <span class="kpi-label">We owe vendors</span>
             <span class="kpi-value">₨{{ money(summary.vendor_payables) }}</span>
           </router-link>
+          <router-link to="/vendors" class="kpi-card">
+            <span class="kpi-label">Vendors owe us</span>
+            <span class="kpi-value">₨{{ money(summary.vendor_credits) }}</span>
+          </router-link>
           <router-link to="/purchases?unpaid=true" class="kpi-card">
             <span class="kpi-label">Vendor bills unpaid</span>
             <span class="kpi-value">₨{{ money(summary.vendor_bills_unpaid) }}</span>
@@ -92,6 +96,7 @@ interface DashboardSummary {
   month: PeriodSummary & { start: string; end: string }
   outstanding_customer_balance: number | string
   vendor_payables: number | string
+  vendor_credits: number | string
   vendor_bills_unpaid: number | string
   low_stock_raw_materials: number
   out_of_stock_products: number
